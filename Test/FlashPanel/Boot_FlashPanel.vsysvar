@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<systemvariables version="4">
+  <namespace name="" comment="">
+    <namespace name="BootFlash" comment="TC364 Boot UDS flash panel">
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="Start" comment="Write 1 to start flashing" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="Abort" comment="Write 1 to abort" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="DoReset" comment="1 = send 11 01 after download" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="1"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="Busy" comment="1 while flashing" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="%" name="Progress" comment="0..100" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="100"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="BytesSent" comment="bytes already transferred" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="2147483647"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="BytesTotal" comment="download size (32-byte aligned)" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="2147483647"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="Browse" comment="Write 1 to load cHexDefault into FilePath" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="FilePath" comment="Full path to Intel HEX" bitcount="8" isSigned="false" encoding="65001" type="string">
+        <value startvalue=""/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="LogEnable" comment="1 = record flash CAN/UDS frames to LogPath" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="LogPath" comment="Log folder (ends with \) or full .txt path" bitcount="8" isSigned="false" encoding="65001" type="string">
+        <value startvalue=""/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="LogUseDefault" comment="Write 1 to copy cLogDirDefault into LogPath" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="LogRecording" comment="1 while a log file is open" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="Status" comment="Human-readable state" bitcount="8" isSigned="false" encoding="65001" type="string">
+        <value startvalue="Idle"/>
+      </variable>
+    </namespace>
+  </namespace>
+</systemvariables>

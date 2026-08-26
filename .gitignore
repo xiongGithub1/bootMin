@@ -1,0 +1,6 @@
+Debug/
+Debug/Appl/GenData/
+.cache/
+*.o  
+*.opt
+*.src

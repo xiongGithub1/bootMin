@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DCF ARSCHEMA="450_DEV">
+	<Version>1.0</Version>
+	<PROFILESETTINGS>ProfileSettings.xml</PROFILESETTINGS>
+	<ADMINDATATEMPLATES>AdminDataTemplates.xml</ADMINDATATEMPLATES>
+	<PROJECTASSISTANT>..\..\last364.dpa</PROJECTASSISTANT>
+	<FILEREF>
+		<ARXML>Packages.arxml</ARXML>
+	</FILEREF>
+	<FILEREF>
+		<ARXML>DataTypes.arxml</ARXML>
+	</FILEREF>
+	<FILEREF>
+		<ARXML>PortInterfaces.arxml</ARXML>
+	</FILEREF>
+	<FILEREF>
+		<ARXML>ECUProjects\last364.arxml</ARXML>
+		<DVG>ECUProjects\last364.dvg</DVG>
+	</FILEREF>
+	<FILEREF>
+		<ARXML>ComponentTypes\StartApp.arxml</ARXML>
+		<DVG>ComponentTypes\StartApp.dvg</DVG>
+	</FILEREF>
+</DCF>

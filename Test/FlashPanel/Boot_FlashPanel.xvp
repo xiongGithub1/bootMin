@@ -1,0 +1,219 @@
+<?xml version="1.0"?>
+<Panel Type="Vector.CANalyzer.Panels.PanelSerializer, Vector.CANalyzer.Panels.Serializer, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null">
+  <Object Type="Vector.CANalyzer.Panels.Runtime.Panel, Vector.CANalyzer.Panels.Common, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="Panel" Children="Controls" ControlName="BootFlash">
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="Title" Children="Controls" ControlName="Title">
+      <Property Name="Name">Title</Property>
+      <Property Name="Size">720, 28</Property>
+      <Property Name="Location">16, 10</Property>
+      <Property Name="Text">TC364 Boot  UDS Flash  (0x74C / 0x75C  500 kbit/s)</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblHex" Children="Controls" ControlName="LblHex">
+      <Property Name="Name">LblHex</Property>
+      <Property Name="Size">48, 22</Property>
+      <Property Name="Location">16, 50</Property>
+      <Property Name="Text">HEX</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.TextBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="BoxPath" Children="Controls" ControlName="FilePath">
+      <Property Name="Name">BoxPath</Property>
+      <Property Name="Size">567, 21</Property>
+      <Property Name="Location">72, 48</Property>
+      <Property Name="AlarmUpperTextColor">WindowText</Property>
+      <Property Name="ValueDecimalPlaces">0</Property>
+      <Property Name="AlarmLowerBkgColor">Salmon</Property>
+      <Property Name="ValueDisplay">Text</Property>
+      <Property Name="AlarmUpperBkgColor">IndianRed</Property>
+      <Property Name="AlarmLowerTextColor">WindowText</Property>
+      <Property Name="AlarmGeneralSettings">1;0;0;100</Property>
+      <Property Name="DisplayLabel">Left</Property>
+      <Property Name="DescriptionText">FilePath:</Property>
+      <Property Name="DescriptionSize">60, 23</Property>
+      <Property Name="UsedValueTable">PhysicalValue</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;FilePath;4;;;-1;;;</Property>
+      <Property Name="TabIndex">2</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.ButtonControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="BtnStart" Children="Controls" ControlName="Start">
+      <Property Name="Name">BtnStart</Property>
+      <Property Name="Size">120, 32</Property>
+      <Property Name="Location">16, 88</Property>
+      <Property Name="Text">Start Flash</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;Start;1;;;-1;;;</Property>
+      <Property Name="TabIndex">3</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.ButtonControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="BtnAbort" Children="Controls" ControlName="Abort">
+      <Property Name="Name">BtnAbort</Property>
+      <Property Name="Size">100, 32</Property>
+      <Property Name="Location">148, 88</Property>
+      <Property Name="Text">Abort</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;Abort;1;;;-1;;;</Property>
+      <Property Name="TabIndex">4</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.CheckBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="ChkReset" Children="Controls" ControlName="DoReset">
+      <Property Name="Name">ChkReset</Property>
+      <Property Name="Size">200, 24</Property>
+      <Property Name="Location">268, 94</Property>
+      <Property Name="Text">11 01 after flash</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;DoReset;1;;;-1;;;</Property>
+      <Property Name="TabIndex">5</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.LEDControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LedBusy" ControlName="Busy">
+      <Property Name="Name">LedBusy</Property>
+      <Property Name="Size">28, 28</Property>
+      <Property Name="Location">500, 90</Property>
+      <Property Name="UsedLEDColorOff">Gray</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;Busy;1;;;-1;;;</Property>
+      <Property Name="TabIndex">6</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblBusy" Children="Controls" ControlName="LblBusy">
+      <Property Name="Name">LblBusy</Property>
+      <Property Name="Size">80, 22</Property>
+      <Property Name="Location">532, 94</Property>
+      <Property Name="Text">Busy</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblProg" Children="Controls" ControlName="LblProg">
+      <Property Name="Name">LblProg</Property>
+      <Property Name="Size">72, 22</Property>
+      <Property Name="Location">16, 136</Property>
+      <Property Name="Text">Progress</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.ProgressBarControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="BarProg" Children="Controls" ControlName="Progress">
+      <Property Name="Name">BarProg</Property>
+      <Property Name="Size">520, 22</Property>
+      <Property Name="Location">88, 136</Property>
+      <Property Name="OriginValue">0</Property>
+      <Property Name="DecimalPlaces">0</Property>
+      <Property Name="ValueSize">41, 13</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;Progress;1;;;-1;;;</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.LCDControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LcdPct" ControlName="Pct">
+      <Property Name="Name">LcdPct</Property>
+      <Property Name="Size">117, 29</Property>
+      <Property Name="Location">624, 132</Property>
+      <Property Name="NumberIntDigits">3</Property>
+      <Property Name="DecimalPlaces">0</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;Progress;1;;;-1;;;</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblStatus" Children="Controls" ControlName="LblStatus">
+      <Property Name="Name">LblStatus</Property>
+      <Property Name="Size">72, 22</Property>
+      <Property Name="Location">16, 176</Property>
+      <Property Name="Text">Status</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.TextBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="BoxStatus" Children="Controls" ControlName="Status">
+      <Property Name="Name">BoxStatus</Property>
+      <Property Name="Size">615, 21</Property>
+      <Property Name="Location">88, 174</Property>
+      <Property Name="AlarmUpperTextColor">WindowText</Property>
+      <Property Name="ValueDecimalPlaces">0</Property>
+      <Property Name="AlarmLowerBkgColor">Salmon</Property>
+      <Property Name="ValueDisplay">Text</Property>
+      <Property Name="AlarmUpperBkgColor">IndianRed</Property>
+      <Property Name="AlarmLowerTextColor">WindowText</Property>
+      <Property Name="AlarmGeneralSettings">1;0;0;100</Property>
+      <Property Name="DisplayLabel">Left</Property>
+      <Property Name="DescriptionText">Status:</Property>
+      <Property Name="DescriptionSize">48, 23</Property>
+      <Property Name="UsedValueTable">PhysicalValue</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;Status;4;;;-1;;;</Property>
+      <Property Name="TabIndex">12</Property>
+      <Property Name="ReadOnly">True</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblSent" Children="Controls" ControlName="LblSent">
+      <Property Name="Name">LblSent</Property>
+      <Property Name="Size">80, 22</Property>
+      <Property Name="Location">16, 216</Property>
+      <Property Name="Text">Bytes sent</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.LCDControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LcdSent" ControlName="BytesSent">
+      <Property Name="Name">LcdSent</Property>
+      <Property Name="Size">155, 29</Property>
+      <Property Name="Location">100, 212</Property>
+      <Property Name="NumberIntDigits">7</Property>
+      <Property Name="DecimalPlaces">0</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;BytesSent;1;;;-1;;;</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblTot" Children="Controls" ControlName="LblTot">
+      <Property Name="Name">LblTot</Property>
+      <Property Name="Size">40, 22</Property>
+      <Property Name="Location">278, 216</Property>
+      <Property Name="Text">/</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.LCDControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LcdTot" ControlName="BytesTotal">
+      <Property Name="Name">LcdTot</Property>
+      <Property Name="Size">155, 29</Property>
+      <Property Name="Location">324, 212</Property>
+      <Property Name="NumberIntDigits">7</Property>
+      <Property Name="DecimalPlaces">0</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;BytesTotal;1;;;-1;;;</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.CheckBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="ChkLog" Children="Controls" ControlName="LogEnable">
+      <Property Name="Name">ChkLog</Property>
+      <Property Name="Size">160, 24</Property>
+      <Property Name="Location">16, 256</Property>
+      <Property Name="Text">Record flash frames</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;LogEnable;1;;;-1;;;</Property>
+      <Property Name="TabIndex">20</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.LEDControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LedLog" ControlName="LogRecording">
+      <Property Name="Name">LedLog</Property>
+      <Property Name="Size">28, 28</Property>
+      <Property Name="Location">180, 252</Property>
+      <Property Name="UsedLEDColorOn">Lime</Property>
+      <Property Name="UsedLEDColorOff">Gray</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;LogRecording;1;;;-1;;;</Property>
+      <Property Name="TabIndex">21</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblLogRec" Children="Controls" ControlName="LblLogRec">
+      <Property Name="Name">LblLogRec</Property>
+      <Property Name="Size">100, 22</Property>
+      <Property Name="Location">214, 256</Property>
+      <Property Name="Text">Recording</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.ButtonControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="BtnLogDef" Children="Controls" ControlName="LogUseDefault">
+      <Property Name="Name">BtnLogDef</Property>
+      <Property Name="Size">140, 28</Property>
+      <Property Name="Location">500, 252</Property>
+      <Property Name="Text">Default log dir</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;LogUseDefault;1;;;-1;;;</Property>
+      <Property Name="TabIndex">22</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblLog" Children="Controls" ControlName="LblLog">
+      <Property Name="Name">LblLog</Property>
+      <Property Name="Size">48, 22</Property>
+      <Property Name="Location">16, 296</Property>
+      <Property Name="Text">Log</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.TextBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="BoxLogPath" Children="Controls" ControlName="LogPath">
+      <Property Name="Name">BoxLogPath</Property>
+      <Property Name="Size">634, 21</Property>
+      <Property Name="Location">72, 294</Property>
+      <Property Name="AlarmUpperTextColor">WindowText</Property>
+      <Property Name="ValueDecimalPlaces">0</Property>
+      <Property Name="AlarmLowerBkgColor">Salmon</Property>
+      <Property Name="ValueDisplay">Text</Property>
+      <Property Name="AlarmUpperBkgColor">IndianRed</Property>
+      <Property Name="AlarmLowerTextColor">WindowText</Property>
+      <Property Name="AlarmGeneralSettings">1;0;0;100</Property>
+      <Property Name="DisplayLabel">Left</Property>
+      <Property Name="DescriptionText">LogPath:</Property>
+      <Property Name="DescriptionSize">54, 23</Property>
+      <Property Name="UsedValueTable">PhysicalValue</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;LogPath;4;;;-1;;;</Property>
+      <Property Name="TabIndex">23</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="Help1" Children="Controls" ControlName="Help1">
+      <Property Name="Name">Help1</Property>
+      <Property Name="Size">720, 36</Property>
+      <Property Name="Location">16, 336</Property>
+      <Property Name="Text">LogPath: folder ending with \ → auto FlashLog_YYYYMMDD_HHMMSS.txt; or full .txt path. Re-import vsysvar if new symbols missing.</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="Help2" Children="Controls" ControlName="Help2">
+      <Property Name="Name">Help2</Property>
+      <Property Name="Size">720, 40</Property>
+      <Property Name="Location">16, 378</Property>
+      <Property Name="Text">APP 0x80020000-0x801FFFFF | Record logs TX/RX CAN + UDS. Create log folder if open fails.</Property>
+    </Object>
+    <Property Name="Name">Panel</Property>
+    <Property Name="Size">800, 440</Property>
+    <Property Name="BackColor">WhiteSmoke</Property>
+  </Object>
+</Panel>

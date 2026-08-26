@@ -1,0 +1,99 @@
+----------------------------------------------------------
+
+  Connection Failed Report from
+  Basic UDE Target Interface, Version: 1.18.6
+  created: 08/20/26, 10:51:39
+
+----------------------------------------------------------
+
+Windows version:
+  Win8 ()
+  Admin: yes
+
+UDE version:
+  Release:  5.02.00
+  Build:    16275
+  Path:     D:\Program Files (x86)\pls\UDE 5.2
+
+Target configuration file:
+  C:\Users\Qxiong\Documents\pls\UDE 5.2\Targets\TriBoard_TC36xA_dap.cfg
+
+Error messages:
+  Tc2CoreTargIntf: Can't connect target !
+  Tc2CoreTargIntf: Can't connect JTAG target
+  Tc2CoreTargIntf: Failed to read target state !
+
+Settings:
+  PortType:  Default
+  CommDevSel:  
+  TargetPort:  Default
+  TargetPortId:  553582592
+  DasIsDefault:  n
+  MaxJtagClk:  10000
+  CheckJtagId:  y
+  ScanJTAG:  n
+  Ocds1ViaPod:  n
+  EtksArbiterMode:  None
+  EtksWaitAfterArbitrationTime:  0
+  RefreshJtag:  n
+  RefreshHarr:  n
+  ReenableOcds:  y
+  ReduceJtagClock:  n
+  UseDap:  y
+  DapMode:  2PIN
+  JtagMuxPort:  -1
+  UseNewJtagEngine:  y
+  ConnOption:  Default
+  SetDebugEnableAb1DisablePin:  n
+  ResetWaitTime:  500
+  ResetMode:  Default
+  OpenDrainReset:  n
+  DiswdtOnReset:  n
+  SetPllOnReset:  0x00000000
+  SetPllOnReset2:  0x00000000
+  ExpectedEntryPoint:  
+  MaxTry:  1
+  ForceEdMode:  -1
+  UseDflashAccessFilter:  y
+  DetectResetWhileHalted:  y
+  UseTranslateAddr:  y
+  SimioAddr:  g_JtagSimioAccess
+  UseStmForPtm:  1
+  ExecOnStartCmds:  n
+  OnStartScript Script:
+    Script is empty
+  ExecOnHaltCmds:  n
+  OnHaltScript Script:
+    
+    
+    
+  ExecOnHaltCmdsWhileHaltedPeriod:  0
+  UseTriggerToBreak:  y
+  UseTL2OnHalt:  y
+  UseOstateStable:  y
+  AllowJtagResetWhileRunning:  y
+  MaxAccRetry:  1
+  AccRetryDelay:  10
+  DefOcdsReserved:  
+  UseRestartWhileRunningHandling:  n
+  IgnoreEmemAccessErrors:  n
+  RemapEmemAccess:  n
+  ReadPmcsrWhileRunning:  y
+  MultiChipDbgMode:  0
+  MultiChipDbgInp:  1
+  MultiChipDbgOut:  6
+  MultiChipDbgCtl:  7
+  IgnoreShortHalt:  n
+  HaltOnBreakOnly:  n
+  IvIcacheOnHalt:  y
+  IvPlbOnHalt:  y
+  SuspendSlaveCores:  n
+  FilterMemAcc:  y
+
+JTAG target infos:
+  JTAG-ID:           0x00000000
+  UsedJtagClk:       0 MHz
+  ExtVoltage:        0.0 V
+  IntVoltageUsed:    n
+
+

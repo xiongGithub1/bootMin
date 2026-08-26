@@ -1,0 +1,100 @@
+Encoding: iso-8859-1
+Detected dtd version 8.5.2107
+VCANdelaPersistorImpl::GetFileVersion: DTD version '8.5.2107' detected
+Loading 'C:\Vector\Applications\SipAddon\StartApplication\Config_Vector\MyEcu.cdd'...
+  dtd version: file 8.5.2107, program 9.0.1100
+Document supports the languages (en-US)
+Document contains the uptodate languages (en-US)
+Template: Qualifier : Door, SaveNo : 2, Label : --DDM_VALIDATE_BEGIN00281d7c-1e88-46b6-8add-59d7d2106c31DDM_VALIDATE_END
+  template data loaded
+  variant 'CommonDiagnostics' loaded
+  variant 'Demo_FlexrayOnly' loaded
+  variant 'Demo_Without_2A_UUDT' loaded
+  variant 'OBD' loaded
+Check Identifier for uniqueness 9.0.101 migration: start
+Check Identifier for uniqueness 9.0.101 migration: checking diagnostic identifier..
+Check Identifier for uniqueness 9.0.101 migration: diagnostic instance attribute "CheckIdentifierForUniqueness" does not exist. Create the attibute.
+Check Identifier for uniqueness 9.0.101 migration: non unique diagnostic identifier detected in document.
+Check Identifier for uniqueness 9.0.101 migration: Diagnostic instance qpath:/CommonDiagnostics/Stored_Data/Example_ReadWriteData has non unique identifier, excluding from check
+Check Identifier for uniqueness 9.0.101 migration: Diagnostic instance qpath:/Demo_FlexrayOnly/Periodic_Data/New_Periodic_Data has non unique identifier, excluding from check
+Check Identifier for uniqueness 9.0.101 migration: Diagnostic instance qpath:/Demo_FlexrayOnly/Dynamically_Define_Periodic_Data/Example_Dynamic_Defined_Periodic_Data_Identifier has non unique identifier, excluding from check
+Check Identifier for uniqueness 9.0.101 migration: Diagnostic instance qpath:/Demo_Without_2A_UUDT/Dynamically_Define_Periodic_Data/Example_Dynamic_Defined_Periodic_Data_Identifier has non unique identifier, excluding from check
+Check Identifier for uniqueness 9.0.101 migration: Diagnostic instance qpath:/OBD/Variant_Coding/New_Variant_Coding has non unique identifier, excluding from check
+Check Identifier for uniqueness 9.0.101 migration: Note: See the diagnostic instance context menu to control this check (see also online help, CDS-68583).
+Check Identifier for uniqueness 9.0.101 migration: success
+Document version: 1.00.02
+Done loading.
+Checking consistency of document. This may take a while, please be patient...
+Warning: Qualifier detected in 'qpath://[PROTOCOLSERVICE]_07_RequestEmissionRelatedDTCsDetectedDuringCurrentOrLastCompletedCycle' is too long.
+Warning:  The maximal allowed qualifier length is 64 characters. See Qualifier generation options dialog.
+Warning: Qualifier detected in 'qpath://[PROTOCOLSERVICE]_08_RequestControlOfOnBoardSystemTestOrComponent_ReadSupportedTIDs' is too long.
+Warning:  The maximal allowed qualifier length is 64 characters. See Qualifier generation options dialog.
+ComParamMan: Unidentified ComParam UudtCanIdType
+ComParamMan: Unidentified ComParam TesterPresentPhys
+ComParamMan: Unidentified ComParam TesterPresentFunc
+ComParamMan: Unidentified ComParam RC21Handling
+ComParamMan: Unidentified ComParam RC21RequestTime
+ComParamMan: Unidentified ComParam RC21CompletionTimeout
+ComParamMan: Unidentified ComParam RC78Handling
+ComParamMan: Unidentified ComParam RC78CompletionTimeout
+ComParamMan: Setting COM parameter 'BusType' to value 'FlexRay' failed. Invalid value!
+ComParamMan: Unidentified ComParam CP_P2Max
+ComParamMan: Unidentified ComParam CP_P2Max_Ecu
+ComParamMan: Unidentified ComParam CP_P2Star
+ComParamMan: Unidentified ComParam CP_P2Star_Ecu
+ComParamMan: Unidentified ComParam CP_TesterPresentTime
+ComParamMan: Unidentified ComParam CP_TesterPresentTime_Ecu
+ComParamMan: Unidentified ComParam CP_P3Phys
+ComParamMan: Unidentified ComParam PDUListReqPhys
+ComParamMan: Unidentified ComParam PDUListRes
+ComParamMan: Unidentified ComParam FrFrameFillerByte
+ComParamMan: Unidentified ComParam AutoP2Handling
+ComParamMan: Unidentified ComParam RC21Handling
+ComParamMan: Unidentified ComParam RC21RequestTime
+ComParamMan: Unidentified ComParam RC21CompletionTimeout
+ComParamMan: Unidentified ComParam RC78Handling
+ComParamMan: Unidentified ComParam RC78CompletionTimeout
+ComParamMan: Setting COM parameter 'TransportProtocolType' to value 'ISO10681' failed. Invalid value!
+ComParamMan: Unidentified ComParam ConnectionModePhys
+ComParamMan: Unidentified ComParam BufferSize
+ComParamMan: Unidentified ComParam BandwidthControl
+ComParamMan: Setting COM parameter 'BusType' to value 'FlexRay' failed. Invalid value!
+ComParamMan: Unidentified ComParam CP_P2Max
+ComParamMan: Unidentified ComParam CP_P2Max_Ecu
+ComParamMan: Unidentified ComParam CP_P2Star
+ComParamMan: Unidentified ComParam CP_P2Star_Ecu
+ComParamMan: Unidentified ComParam CP_TesterPresentTime
+ComParamMan: Unidentified ComParam CP_TesterPresentTime_Ecu
+ComParamMan: Unidentified ComParam CP_P3Phys
+ComParamMan: Unidentified ComParam PDUListReqPhys
+ComParamMan: Unidentified ComParam PDUListRes
+ComParamMan: Unidentified ComParam FrFrameFillerByte
+ComParamMan: Unidentified ComParam AutoP2Handling
+ComParamMan: Unidentified ComParam RC21Handling
+ComParamMan: Unidentified ComParam RC21RequestTime
+ComParamMan: Unidentified ComParam RC21CompletionTimeout
+ComParamMan: Unidentified ComParam RC78Handling
+ComParamMan: Unidentified ComParam RC78CompletionTimeout
+ComParamMan: Setting COM parameter 'TransportProtocolType' to value 'Autosar2x' failed. Invalid value!
+ComParamMan: Unidentified ComParam ConnectionModePhys
+ComParamMan: Unidentified ComParam MessageLengthPhys
+ComParamMan: Unidentified ComParam AddressTypePhys
+ComParamMan: Setting COM parameter 'BusType' to value 'DoIP' failed. Invalid value!
+ComParamMan: Unidentified ComParam CP_LogicalSourceAddress
+ComParamMan: Unidentified ComParam CP_LogicalTargetAddress
+ComParamMan: Unidentified ComParam CP_TCPDataPort
+ComParamMan: Unidentified ComParam CP_UDPVehiclePort
+ComParamMan: Unidentified ComParam CP_UDPTestEquipmentPort
+ComParamMan: Unidentified ComParam CP_TesterPresentTime
+ComParamMan: Unidentified ComParam CP_TesterPresentTime_Ecu
+ComParamMan: Unidentified ComParam CP_P3Phys
+ComParamMan: Unidentified ComParam RC21Handling
+ComParamMan: Unidentified ComParam RC21RequestTime
+ComParamMan: Unidentified ComParam RC21CompletionTimeout
+ComParamMan: Unidentified ComParam RC78Handling
+ComParamMan: Unidentified ComParam RC78CompletionTimeout
+Checking service prefixes in base variant 'CommonDiagnostics' ... OK
+Checking service prefixes in extended variant 'Demo_FlexrayOnly' ... OK
+Checking service prefixes in extended variant 'Demo_Without_2A_UUDT' ... OK
+Checking service prefixes in extended variant 'OBD' ... OK
+Document is consistent.

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--This file was saved with a tool from Vector Informatik GmbH-->
+<AUTOSAR xsi:schemaLocation="http://autosar.org/schema/r4.0 AUTOSAR_00048.xsd" xmlns="http://autosar.org/schema/r4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <AR-PACKAGES>
+    <AR-PACKAGE UUID="3433654A-40AF-4F1C-B6CF-A768EF928CA1">
+      <SHORT-NAME>ComponentTypes</SHORT-NAME>
+      <ELEMENTS>
+        <APPLICATION-SW-COMPONENT-TYPE UUID="29CEE414-8C92-4098-9D33-043FB99C2C62">
+          <SHORT-NAME>StartApp</SHORT-NAME>
+          <INTERNAL-BEHAVIORS>
+            <SWC-INTERNAL-BEHAVIOR UUID="23D7D4E5-B11E-4A57-B020-4C2441866F18">
+              <SHORT-NAME>StartApp_InternalBehavior</SHORT-NAME>
+              <EVENTS>
+                <INIT-EVENT UUID="4B91D2A3-5D8E-47D6-8D7E-568156A99AA3">
+                  <SHORT-NAME>StartApp_InitEvent</SHORT-NAME>
+                  <START-ON-EVENT-REF DEST="RUNNABLE-ENTITY">/ComponentTypes/StartApp/StartApp_InternalBehavior/StartApp_Init</START-ON-EVENT-REF>
+                </INIT-EVENT>
+                <TIMING-EVENT UUID="8ABA4657-4CC2-4B2E-896E-0B9892AF4B05">
+                  <SHORT-NAME>TMT_StartApp_Cyclic1ms</SHORT-NAME>
+                  <START-ON-EVENT-REF DEST="RUNNABLE-ENTITY">/ComponentTypes/StartApp/StartApp_InternalBehavior/StartApp_Cyclic1ms</START-ON-EVENT-REF>
+                  <PERIOD>0.001</PERIOD>
+                </TIMING-EVENT>
+                <TIMING-EVENT UUID="39B6632A-DEA1-420C-A573-5EB0B92EEFE5">
+                  <SHORT-NAME>TMT_StartApp_Cyclic500ms</SHORT-NAME>
+                  <START-ON-EVENT-REF DEST="RUNNABLE-ENTITY">/ComponentTypes/StartApp/StartApp_InternalBehavior/StartApp_Cyclic250ms</START-ON-EVENT-REF>
+                  <PERIOD>0.25</PERIOD>
+                </TIMING-EVENT>
+                <TIMING-EVENT UUID="234C70B8-B8B0-44AA-92AB-BB05A13F7A80">
+                  <SHORT-NAME>TMT_StartApp_Cyclic10ms</SHORT-NAME>
+                  <START-ON-EVENT-REF DEST="RUNNABLE-ENTITY">/ComponentTypes/StartApp/StartApp_InternalBehavior/StartApp_Cyclic10ms</START-ON-EVENT-REF>
+                  <PERIOD>0.01</PERIOD>
+                </TIMING-EVENT>
+                <TIMING-EVENT UUID="2CB13980-9513-4715-8BB3-44E46DD2B497">
+                  <SHORT-NAME>TMT_StartApp_Cyclic1000ms</SHORT-NAME>
+                  <START-ON-EVENT-REF DEST="RUNNABLE-ENTITY">/ComponentTypes/StartApp/StartApp_InternalBehavior/StartApp_Cyclic1000ms</START-ON-EVENT-REF>
+                  <PERIOD>1</PERIOD>
+                </TIMING-EVENT>
+              </EVENTS>
+              <RUNNABLES>
+                <RUNNABLE-ENTITY UUID="BAFC9269-4E5B-4716-890C-5DB0FA05E31C">
+                  <SHORT-NAME>StartApp_Cyclic250ms</SHORT-NAME>
+                </RUNNABLE-ENTITY>
+                <RUNNABLE-ENTITY UUID="40220649-369F-425D-9DCF-642C526CAC6E">
+                  <SHORT-NAME>StartApp_Cyclic1ms</SHORT-NAME>
+                </RUNNABLE-ENTITY>
+                <RUNNABLE-ENTITY UUID="615A9424-080A-4BCB-BDBF-F814367F5E34">
+                  <SHORT-NAME>StartApp_Init</SHORT-NAME>
+                  <ADMIN-DATA>
+                    <SDGS>
+                      <SDG GID="edve:RunnableKind">
+                        <SD>InitRunnable</SD>
+                      </SDG>
+                    </SDGS>
+                  </ADMIN-DATA>
+                </RUNNABLE-ENTITY>
+                <RUNNABLE-ENTITY UUID="98369017-3A86-41D0-ADCC-365D54A4AD94">
+                  <SHORT-NAME>StartApp_Cyclic10ms</SHORT-NAME>
+                </RUNNABLE-ENTITY>
+                <RUNNABLE-ENTITY UUID="DA81AEF9-C199-4247-8F33-E91CBFA882B9">
+                  <SHORT-NAME>StartApp_Cyclic1000ms</SHORT-NAME>
+                </RUNNABLE-ENTITY>
+              </RUNNABLES>
+              <SUPPORTS-MULTIPLE-INSTANTIATION>false</SUPPORTS-MULTIPLE-INSTANTIATION>
+            </SWC-INTERNAL-BEHAVIOR>
+          </INTERNAL-BEHAVIORS>
+        </APPLICATION-SW-COMPONENT-TYPE>
+        <SWC-IMPLEMENTATION UUID="D1421BB5-E67D-49C5-8029-41F2582E4A38">
+          <SHORT-NAME>StartApp_Implementation</SHORT-NAME>
+          <BEHAVIOR-REF DEST="SWC-INTERNAL-BEHAVIOR">/ComponentTypes/StartApp/StartApp_InternalBehavior</BEHAVIOR-REF>
+        </SWC-IMPLEMENTATION>
+      </ELEMENTS>
+    </AR-PACKAGE>
+  </AR-PACKAGES>
+</AUTOSAR>

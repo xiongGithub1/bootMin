@@ -1,0 +1,2443 @@
+/*@!Encoding:1252*/
+/**
+ * Boot_Dcm_CanoeTest.can
+ * ------------------------------------------------------------------
+ * CANoe CAPL test module for the table-driven UDS/DCM of
+ * autosarTc364_Boot (2).
+ *
+ * Test matrix (see Boot_Dcm_TestSpec.md):
+ *   A1..A18 DiagnosticSessionControl / switch matrix / S3 / isolation (A17 gated)
+ *   B1..B13 SecurityAccess (L1 / L3, NRC 0x12/0x13/0x24/0x35/0x36/0x37)
+ *   C1..C31 service permission matrix + DID / NRC
+ *   D1..D7  P2 / P2* advertisement, P2 latency, S3, 3E 80 keepalive
+ *   H1..H5  CanTp TX serialize: back-to-back requests (no 20 ms tester gap)
+ *   E1..E18 flash programming flow + service order (destructive, gated)
+ *   F1/F2/F4 ECU reset (gated); F3 11 02 SFNS always
+ *   G1..G3  functional addressing (0x7DF)
+ *
+ * CAN IDs / bitrate come from the project configuration:
+ *   request (physical) 0x74C, response 0x75C, functional 0x7DF, 500 kbit/s.
+ *
+ * How to run in CANoe:
+ *   1. Create/open a CANoe configuration with a CAN channel at 500 kbit/s
+ *      connected to the ECU under test.
+ *   2. Test Setup -> right-click -> Insert Test Environment -> Test Module
+ *      (CAPL) -> select this file.
+ *   3. Compile (F7) and run the test module.
+ *   4. Optional: set gRunFlash = 1 / gRunReset = 1 in the variables block
+ *      to enable the destructive flash and reset tests.
+ *
+ * No DBC / diagnostic description (CDD) is required: the module implements
+ * the ISO-TP single/multi frame handling itself on raw CAN messages.
+ */
+
+includes
+{
+}
+
+variables
+{
+  /* ---- CAN identifiers (project config) ---- */
+  const dword cReqId   = 0x74C;   /* physical diagnostic request  */
+  const dword cRespId  = 0x75C;   /* response / flow control     */
+  const dword cFunctId = 0x7DF;   /* functional request          */
+
+  /* ---- server timings ---- */
+  const dword cP2Ms     = 50;
+  const dword cP2StarMs = 5000;
+  const dword cS3Ms     = 5000;
+
+  /* ---- test data ---- */
+  const dword cAppStart = 0x80020000;
+
+  /* CAPL requires a numeric ID when no DBC message type is available */
+  message 0x000 gReq;           /* request / flow-control frame to the ECU  */
+  message 0x000 gFrame;         /* received frame from the ECU              */
+  byte     gResp[512];          /* last received UDS response               */
+
+  /* RX queue: ZXDoc listens continuously; TestWaitForMessage-after-send
+   * misses the ISO-TP FC that arrives immediately after a First Frame. */
+  byte gQData[32];
+  byte gQDlc[4];
+  int  gQRd;
+  int  gQWr;
+  int  gQCnt;
+
+  /* ---- enable switches (set to 1 to run destructive tests) ---- */
+  int gRunFlash = 0;            /* E1..E18 erase the APP area!              */
+  int gRunReset = 0;            /* F1/F2/F4 reset the ECU; F3 always runs   */
+  int gRunStress = 0;           /* A17: 1000 session-switch cycles          */
+}
+
+/* =====================================================================
+ * ISO-TP helpers (tester side)
+ * ===================================================================== */
+
+on message 0x75C
+{
+  dword i;
+  dword base;
+
+  if (gQCnt >= 4)
+  {
+    return;
+  }
+  base = gQWr * 8;
+  gQDlc[gQWr] = this.dlc;
+  for (i = 0; i < 8; i++)
+  {
+    gQData[base + i] = this.byte(i);
+  }
+  gQWr = (gQWr + 1) % 4;
+  gQCnt = gQCnt + 1;
+}
+
+void RxDrain(void)
+{
+  gQRd = 0;
+  gQWr = 0;
+  gQCnt = 0;
+}
+
+int RxPop(void)
+{
+  dword i;
+  dword base;
+
+  if (gQCnt <= 0)
+  {
+    return 0;
+  }
+  base = gQRd * 8;
+  gFrame.id = cRespId;
+  gFrame.dlc = gQDlc[gQRd];
+  for (i = 0; i < 8; i++)
+  {
+    gFrame.byte(i) = gQData[base + i];
+  }
+  gQRd = (gQRd + 1) % 4;
+  gQCnt = gQCnt - 1;
+  return 1;
+}
+
+/* Send one CAN-TP frame.
+ * Boot CanIf has DLC check ON and requires DLC==8 (see CanIf_RxPduConfig).
+ * ZXDoc pads to 8; CAPL must do the same or ECU drops the frame. */
+void SendRaw(dword txId, byte frame[], dword len)
+{
+  dword i;
+
+  if (len > 8)
+  {
+    len = 8;
+  }
+
+  gReq.id = txId;
+  gReq.dlc = 8;                 /* always 8: match CanIf DLC check */
+  for (i = 0; i < len; i++)
+  {
+    gReq.byte(i) = frame[i];
+  }
+  for (; i < 8; i++)
+  {
+    gReq.byte(i) = 0x00;        /* pad unused bytes */
+  }
+  output(gReq);
+}
+
+/* Wait for one CAN-TP frame with ID cRespId. Returns 1 on success. */
+int WaitRaw(dword timeout)
+{
+  dword waited;
+
+  waited = 0;
+  while (waited < timeout)
+  {
+    if (RxPop() != 0)
+    {
+      return 1;
+    }
+    TestWaitForTimeout(1);
+    waited += 1;
+  }
+  return RxPop();
+}
+
+/* Wait until a 0x75C frame whose PCI nibble matches pciHi (e.g. 0x30 = FC).
+ * Retry/late copies of the previous UDS response must not be treated as FC. */
+int WaitRawPci(dword timeout, byte pciHi)
+{
+  dword waited;
+
+  waited = 0;
+  while (waited < timeout)
+  {
+    if (WaitRaw(50) == 0)
+    {
+      waited += 50;
+    }
+    else if ((gFrame.byte(0) & 0xF0) == pciHi)
+    {
+      return 1;
+    }
+    else
+    {
+      waited += 1;
+    }
+  }
+  return 0;
+}
+
+/* Send a UDS request (single frame or first/consecutive frames). */
+void SendTp(byte data[], dword len, dword txId)
+{
+  dword i;
+  dword off;
+  dword seq;
+  dword n;
+  dword bs;
+  dword stmin;
+  dword sent;
+  byte  frame[8];
+
+  if (len <= 7)
+  {
+    frame[0] = len;
+    for (i = 0; i < len; i++)
+    {
+      frame[1 + i] = data[i];
+    }
+    SendRaw(txId, frame, 1 + len);
+    return;
+  }
+
+  /* first frame */
+  frame[0] = 0x10 | ((len >> 8) & 0x0F);
+  frame[1] = len & 0xFF;
+  for (i = 0; i < 6; i++)
+  {
+    if (i < len)
+    {
+      frame[2 + i] = data[i];
+    }
+    else
+    {
+      frame[2 + i] = 0;
+    }
+  }
+  SendRaw(txId, frame, 8);
+
+  /* wait for flow control (skip leftover 50 xx / 67 xx from the previous step) */
+  if (WaitRawPci(1000, 0x30) == 0)
+  {
+    write("ISO-TP: no flow control for request");
+    return;
+  }
+
+  bs    = gFrame.byte(1);
+  stmin = gFrame.byte(2) & 0x7F;
+  off   = 6;
+  seq   = 1;
+  sent  = 0;
+
+  while (off < len)
+  {
+    /* honor block size: wait for a further FC after each block */
+    if ((bs > 0) && (sent > 0) && ((sent % bs) == 0))
+    {
+      if (WaitRawPci(1000, 0x30) == 0)
+      {
+        write("ISO-TP: no further flow control");
+        return;
+      }
+      stmin = gFrame.byte(2) & 0x7F;
+    }
+
+    n = len - off;
+    if (n > 7)
+    {
+      n = 7;
+    }
+    frame[0] = 0x20 | (seq & 0x0F);
+    for (i = 0; i < n; i++)
+    {
+      frame[1 + i] = data[off + i];
+    }
+    SendRaw(txId, frame, 1 + n);
+
+    /* ECU CanTp processes one frame per main cycle */
+    if (stmin > 0)
+    {
+      TestWaitForTimeout(stmin);
+    }
+    else
+    {
+      TestWaitForTimeout(5);
+    }
+
+    off  += n;
+    seq  += 1;
+    sent += 1;
+  }
+}
+
+/* Wait for a complete UDS response. Returns length, 0 on timeout. */
+dword WaitTp(byte resp[], dword timeout)
+{
+  dword total;
+  dword off;
+  dword i;
+  dword waited;
+  byte  pci;
+  byte  fc[3];
+
+  waited = 0;
+  pci = 0xFF;
+  while (waited < timeout)
+  {
+    if (WaitRaw(50) == 0)
+    {
+      waited += 50;
+    }
+    else
+    {
+      pci = gFrame.byte(0) & 0xF0;
+      if ((pci == 0x00) || (pci == 0x10))
+      {
+        break;
+      }
+      waited += 1;
+      pci = 0xFF;
+    }
+  }
+  if ((pci != 0x00) && (pci != 0x10))
+  {
+    return 0;
+  }
+
+  /* single frame */
+  if ((gFrame.byte(0) & 0xF0) == 0x00)
+  {
+    total = gFrame.byte(0) & 0x0F;
+    for (i = 0; i < total; i++)
+    {
+      resp[i] = gFrame.byte(1 + i);
+    }
+    return total;
+  }
+
+  /* first frame */
+  if ((gFrame.byte(0) & 0xF0) == 0x10)
+  {
+    total = ((gFrame.byte(0) & 0x0F) << 8) | gFrame.byte(1);
+    off = 0;
+    for (i = 2; (i < 8) && (off < total); i++)
+    {
+      resp[off] = gFrame.byte(i);
+      off++;
+    }
+
+    /* send flow control: CTS, block size 0, STmin 0 */
+    fc[0] = 0x30;
+    fc[1] = 0x00;
+    fc[2] = 0x00;
+    SendRaw(cReqId, fc, 3);
+
+    while (off < total)
+    {
+      if (WaitRaw(timeout) == 0)
+      {
+        return 0;
+      }
+      if ((gFrame.byte(0) & 0xF0) == 0x20)
+      {
+        for (i = 1; (i < 8) && (off < total); i++)
+        {
+          resp[off] = gFrame.byte(i);
+          off++;
+        }
+      }
+    }
+    return total;
+  }
+
+  return 0;
+}
+
+/* Send a request and wait for the response. Returns response length.
+ * gapMs: tester delay after the previous response. 0 = fire as soon as the
+ * last UDS PDU is complete (stresses Boot TX busy/retry: CanTp FULL_DUPLEX
+ * still allows only one outstanding Tx N-PDU on 0x75C). */
+dword UdsRequestEx(byte req[], dword reqLen, byte resp[], dword timeout, dword txId, dword gapMs)
+{
+  if (gapMs > 0)
+  {
+    TestWaitForTimeout(gapMs);
+  }
+  RxDrain();
+  SendTp(req, reqLen, txId);
+  return WaitTp(resp, timeout);
+}
+
+dword UdsRequest(byte req[], dword reqLen, byte resp[], dword timeout, dword txId)
+{
+  return UdsRequestEx(req, reqLen, resp, timeout, txId, 20);
+}
+
+/* ---------- expectation helpers ------------------------------------- */
+/* Named ExpectResp (not Exp) to avoid clashing with CAPL math exp(). */
+int ExpectResp(byte req[], dword reqLen, byte expect[], dword expectLen)
+{
+  dword len;
+  dword i;
+
+  len = UdsRequest(req, reqLen, gResp, 2000, cReqId);
+  if (len != expectLen)
+  {
+    if (len == 0)
+    {
+      write("ExpectResp: timeout, expected len=%d", expectLen);
+    }
+    else if ((len >= 3) && (gResp[0] == 0x7F))
+    {
+      write("ExpectResp: NRC 7F %02X %02X (len=%d), expected pos len=%d", gResp[1], gResp[2], len, expectLen);
+    }
+    else
+    {
+      write("ExpectResp: SID=%02X len=%d, expected len=%d", gResp[0], len, expectLen);
+    }
+    return 0;
+  }
+  for (i = 0; i < len; i++)
+  {
+    if (gResp[i] != expect[i])
+    {
+      write("ExpectResp: mismatch at [%d] got %02X expect %02X", i, gResp[i], expect[i]);
+      return 0;
+    }
+  }
+  return 1;
+}
+
+int ExpNeg(byte req[], dword reqLen, dword sid, dword nrc)
+{
+  dword len;
+
+  len = UdsRequest(req, reqLen, gResp, 2000, cReqId);
+  if ((len == 3) && (gResp[0] == 0x7F) && (gResp[1] == sid) && (gResp[2] == nrc))
+  {
+    return 1;
+  }
+  if (len == 0)
+  {
+    write("ExpNeg: timeout, expected 7F %02X %02X", sid, nrc);
+  }
+  else if ((len >= 3) && (gResp[0] == 0x7F))
+  {
+    write("ExpNeg: got 7F %02X %02X, expected 7F %02X %02X", gResp[1], gResp[2], sid, nrc);
+  }
+  else
+  {
+    write("ExpNeg: got SID=%02X len=%d, expected 7F %02X %02X", gResp[0], len, sid, nrc);
+  }
+  return 0;
+}
+
+int ExpNoResp(byte req[], dword reqLen)
+{
+  return (UdsRequest(req, reqLen, gResp, 500, cReqId) == 0);
+}
+
+/* ---------- state helpers ------------------------------------------- */
+void ToDefault(void)
+{
+  byte req[2];
+
+  req[0] = 0x10;
+  req[1] = 0x01;
+  UdsRequest(req, 2, gResp, 1000, cReqId);
+  TestWaitForTimeout(100);
+}
+
+int EnterSession(dword session)
+{
+  byte req[2];
+  dword len;
+
+  req[0] = 0x10;
+  req[1] = session;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  return ((len >= 2) && (gResp[0] == 0x50) && (gResp[1] == session));
+}
+
+int ExpectDsc(dword session)
+{
+  byte req[2];
+  byte expect[6];
+
+  req[0] = 0x10;
+  req[1] = session;
+  expect[0] = 0x50;
+  expect[1] = session;
+  expect[2] = 0x00;
+  expect[3] = 0x05;
+  expect[4] = 0x01;
+  expect[5] = 0xF4;
+  return ExpectResp(req, 2, expect, 6);
+}
+
+int DoUnlock(dword level)
+{
+  byte req[6];
+  dword len;
+  dword seed;
+  dword secKey;   /* not named 'key': CAPL reserves key for on key */
+  dword seedSf;
+  dword keySf;
+
+  if (level == 1)
+  {
+    seedSf = 0x01;
+    keySf  = 0x02;
+  }
+  else
+  {
+    seedSf = 0x03;
+    keySf  = 0x04;
+  }
+
+  req[0] = 0x27;
+  req[1] = seedSf;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if ((len != 6) || (gResp[0] != 0x67) || (gResp[1] != seedSf))
+  {
+    return 0;
+  }
+
+  seed = (((dword)gResp[2]) << 24) |
+         (((dword)gResp[3]) << 16) |
+         (((dword)gResp[4]) << 8)  |
+         ((dword)gResp[5]);
+  /* secKey = bitwise NOT of seed */
+  secKey = seed ^ 0xFFFFFFFF;
+
+  req[0] = 0x27;
+  req[1] = keySf;
+  req[2] = (secKey >> 24) & 0xFF;
+  req[3] = (secKey >> 16) & 0xFF;
+  req[4] = (secKey >> 8) & 0xFF;
+  req[5] = secKey & 0xFF;
+  len = UdsRequest(req, 6, gResp, 2000, cReqId);
+  return ((len == 2) && (gResp[0] == 0x67) && (gResp[1] == keySf));
+}
+
+int RestoreF180(void)
+{
+  byte wr[8];
+  byte wrExp[3];
+
+  if (EnterSession(0x03) == 0)
+  {
+    return 0;
+  }
+  if (DoUnlock(1) == 0)
+  {
+    return 0;
+  }
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x80; wr[3] = 0x01;
+  wr[4] = 0x42; wr[5] = 0x4F; wr[6] = 0x4F; wr[7] = 0x54;
+  wrExp[0] = 0x6E; wrExp[1] = 0xF1; wrExp[2] = 0x80;
+  return ExpectResp(wr, 8, wrExp, 3);
+}
+
+/* Request L1 seed then send a wrong key. Returns 1 if NRC matches expectNrc. */
+int SendWrongKey(dword expectNrc)
+{
+  byte req[6];
+  dword len;
+  dword seed;
+  dword wrong;
+
+  req[0] = 0x27;
+  req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if ((len != 6) || (gResp[0] != 0x67) || (gResp[1] != 0x01))
+  {
+    return 0;
+  }
+  seed = (((dword)gResp[2]) << 24) | (((dword)gResp[3]) << 16) |
+         (((dword)gResp[4]) << 8)  | ((dword)gResp[5]);
+  wrong = (seed ^ 0xFFFFFFFF) ^ 0x55;
+  req[0] = 0x27;
+  req[1] = 0x02;
+  req[2] = (wrong >> 24) & 0xFF;
+  req[3] = (wrong >> 16) & 0xFF;
+  req[4] = (wrong >> 8) & 0xFF;
+  req[5] = wrong & 0xFF;
+  return ExpNeg(req, 6, 0x27, expectNrc);
+}
+
+int ProgErased(void)
+{
+  byte req[4];
+  dword len;
+
+  if (EnterSession(0x02) == 0)
+  {
+    return 0;
+  }
+  if (DoUnlock(1) == 0)
+  {
+    return 0;
+  }
+  req[0] = 0x31;
+  req[1] = 0x01;
+  req[2] = 0xFF;
+  req[3] = 0x00;
+  len = UdsRequest(req, 4, gResp, 10000, cReqId);
+  return ((len == 4) && (gResp[0] == 0x71) && (gResp[1] == 0x01) &&
+          (gResp[2] == 0xFF) && (gResp[3] == 0x00));
+}
+
+int StartDownload(dword addr, dword size)
+{
+  byte req[11];
+  dword len;
+
+  req[0] = 0x34;
+  req[1] = 0x00;
+  req[2] = 0x44;
+  req[3] = (addr >> 24) & 0xFF;
+  req[4] = (addr >> 16) & 0xFF;
+  req[5] = (addr >> 8) & 0xFF;
+  req[6] = addr & 0xFF;
+  req[7] = (size >> 24) & 0xFF;
+  req[8] = (size >> 16) & 0xFF;
+  req[9] = (size >> 8) & 0xFF;
+  req[10] = size & 0xFF;
+  len = UdsRequest(req, 11, gResp, 2000, cReqId);
+  return ((len == 4) && (gResp[0] == 0x74) && (gResp[1] == 0x20) &&
+          (gResp[2] == 0x02) && (gResp[3] == 0x00));
+}
+
+int DoDownload32(void)
+{
+  byte td[34];
+  byte rt[1];
+  dword i;
+  dword len;
+
+  if (StartDownload(cAppStart, 0x20) == 0)
+  {
+    return 0;
+  }
+  td[0] = 0x36;
+  td[1] = 0x01;
+  for (i = 0; i < 32; i++) { td[2 + i] = i & 0xFF; }
+  len = UdsRequest(td, 34, gResp, 2000, cReqId);
+  if ((len != 2) || (gResp[0] != 0x76) || (gResp[1] != 0x01))
+  {
+    return 0;
+  }
+  rt[0] = 0x37;
+  len = UdsRequest(rt, 1, gResp, 2000, cReqId);
+  return ((len == 1) && (gResp[0] == 0x77));
+}
+
+void BuildDownloadReq(byte req[], dword addr, dword size)
+{
+  req[0] = 0x34;
+  req[1] = 0x00;
+  req[2] = 0x44;
+  req[3] = (addr >> 24) & 0xFF;
+  req[4] = (addr >> 16) & 0xFF;
+  req[5] = (addr >> 8) & 0xFF;
+  req[6] = addr & 0xFF;
+  req[7] = (size >> 24) & 0xFF;
+  req[8] = (size >> 16) & 0xFF;
+  req[9] = (size >> 8) & 0xFF;
+  req[10] = size & 0xFF;
+}
+
+/* =====================================================================
+ * Test cases
+ * ===================================================================== */
+
+/* ---- A. session control ---- */
+testcase TC_A1()
+{
+  byte req[2];
+  byte expect[6];
+
+  TestCaseTitle("A1", "10 01 default session, P2/P2* advertisement");
+  req[0] = 0x10; req[1] = 0x01;
+  expect[0] = 0x50; expect[1] = 0x01; expect[2] = 0x00; expect[3] = 0x05; expect[4] = 0x01; expect[5] = 0xF4;
+  if (ExpectResp(req, 2, expect, 6)) { TestStepPass("A1", "50 01 00 05 01 F4"); }
+  else                     { TestStepFail("A1", "response mismatch"); }
+}
+
+testcase TC_A2()
+{
+  TestCaseTitle("A2", "10 02 programming session from default");
+  if (EnterSession(0x02)) { TestStepPass("A2", "50 02"); }
+  else                    { TestStepFail("A2", "enter programming failed"); }
+}
+
+testcase TC_A3()
+{
+  TestCaseTitle("A3", "10 03 extended session");
+  if (EnterSession(0x03)) { TestStepPass("A3", "50 03"); }
+  else                    { TestStepFail("A3", "enter extended failed"); }
+}
+
+testcase TC_A4()
+{
+  byte req[2];
+
+  TestCaseTitle("A4", "10 04 invalid sub-function");
+  req[0] = 0x10; req[1] = 0x04;
+  if (ExpNeg(req, 2, 0x10, 0x12)) { TestStepPass("A4", "7F 10 12"); }
+  else                            { TestStepFail("A4", "expected SFNS"); }
+}
+
+testcase TC_A5()
+{
+  byte req[2];
+
+  TestCaseTitle("A5", "10 81 suppressPosRsp");
+  req[0] = 0x10; req[1] = 0x81;
+  if (ExpNoResp(req, 2)) { TestStepPass("A5", "no response"); }
+  else                   { TestStepFail("A5", "unexpected response"); }
+}
+
+testcase TC_A6()
+{
+  byte req[1];
+
+  TestCaseTitle("A6", "10 with length 1");
+  req[0] = 0x10;
+  if (ExpNeg(req, 1, 0x10, 0x13)) { TestStepPass("A6", "7F 10 13"); }
+  else                            { TestStepFail("A6", "expected IMLOIF"); }
+}
+
+testcase TC_A7()
+{
+  byte req[11];
+
+  TestCaseTitle("A7", "session change locks SecurityAccess");
+  ToDefault();
+  if (EnterSession(0x02) == 0)
+  {
+    TestStepFail("A7", "step1 enter programming (10 02) failed");
+    return;
+  }
+  if (DoUnlock(1) == 0)
+  {
+    TestStepFail("A7", "step2 unlock L1 (27) failed");
+    return;
+  }
+  if (EnterSession(0x01) == 0)
+  {
+    TestStepFail("A7", "step3 return default (10 01) failed");
+    return;
+  }
+  if (EnterSession(0x02) == 0)
+  {
+    TestStepFail("A7", "step4 re-enter programming (10 02) failed");
+    return;
+  }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x33))
+  {
+    TestStepPass("A7", "7F 34 33 after session change");
+  }
+  else
+  {
+    TestStepFail("A7", "step5 34 expected 7F 34 33");
+  }
+  ToDefault();
+}
+
+testcase TC_A8()
+{
+  byte req[2];
+  dword len;
+
+  TestCaseTitle("A8", "10 82 suppress enters programming without 50 02");
+  req[0] = 0x10; req[1] = 0x82;
+  if (ExpNoResp(req, 2) == 0) { TestStepFail("A8", "expected no 50 02"); return; }
+  req[0] = 0x27; req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if ((len == 6) && (gResp[0] == 0x67) && (gResp[1] == 0x01))
+  {
+    TestStepPass("A8", "no 50 02, 27 01 accepted");
+  }
+  else
+  {
+    TestStepFail("A8", "session not programming after 10 82");
+  }
+}
+
+testcase TC_A9()
+{
+  byte req[2];
+
+  TestCaseTitle("A9", "10 00 unsupported session -> SFNS");
+  req[0] = 0x10; req[1] = 0x00;
+  if (ExpNeg(req, 2, 0x10, 0x12)) { TestStepPass("A9", "7F 10 12"); }
+  else                            { TestStepFail("A9", "expected SFNS"); }
+}
+
+testcase TC_A10()
+{
+  byte req[2];
+
+  TestCaseTitle("A10", "10 FF unsupported session -> SFNS");
+  req[0] = 0x10; req[1] = 0xFF;
+  if (ExpNeg(req, 2, 0x10, 0x12)) { TestStepPass("A10", "7F 10 12"); }
+  else                            { TestStepFail("A10", "expected SFNS"); }
+}
+
+testcase TC_A11()
+{
+  TestCaseTitle("A11", "legal switch matrix + P2/P2* in 50 xx");
+  ToDefault();
+  if (ExpectDsc(0x03) == 0) { TestStepFail("A11", "default -> extended"); return; }
+  if (ExpectDsc(0x02) == 0) { TestStepFail("A11", "extended -> programming"); return; }
+  if (ExpectDsc(0x01) == 0) { TestStepFail("A11", "programming -> default"); return; }
+  if (ExpectDsc(0x02) == 0) { TestStepFail("A11", "default -> programming"); return; }
+  TestStepPass("A11", "50 xx 00 05 01 F4 on all hops (default->prog allowed)");
+}
+
+testcase TC_A12()
+{
+  TestCaseTitle("A12", "re-enter same extended session -> 50 03");
+  if (ExpectDsc(0x03) == 0) { TestStepFail("A12", "first 10 03"); return; }
+  if (ExpectDsc(0x03)) { TestStepPass("A12", "second 10 03 still 50 03"); }
+  else                 { TestStepFail("A12", "re-enter extended failed"); }
+}
+
+testcase TC_A13()
+{
+  byte vin[3];
+  byte sa[2];
+  byte rc[4];
+  dword len;
+
+  TestCaseTitle("A13", "service availability after session switch");
+  if (ExpectDsc(0x03) == 0) { TestStepFail("A13", "enter extended"); return; }
+  vin[0] = 0x22; vin[1] = 0xF1; vin[2] = 0x90;
+  len = UdsRequest(vin, 3, gResp, 2000, cReqId);
+  if ((len != 20) || (gResp[0] != 0x62) || (gResp[2] != 0x90))
+  {
+    TestStepFail("A13", "22 F190 in extended failed");
+    return;
+  }
+  if (ExpectDsc(0x02) == 0) { TestStepFail("A13", "enter programming"); return; }
+  sa[0] = 0x27; sa[1] = 0x01;
+  len = UdsRequest(sa, 2, gResp, 2000, cReqId);
+  if ((len != 6) || (gResp[0] != 0x67))
+  {
+    TestStepFail("A13", "27 01 in programming failed");
+    return;
+  }
+  if (ExpectDsc(0x01) == 0) { TestStepFail("A13", "return default"); return; }
+  rc[0] = 0x31; rc[1] = 0x01; rc[2] = 0xFF; rc[3] = 0x01;
+  if (ExpNeg(rc, 4, 0x31, 0x7F)) { TestStepPass("A13", "ext 22 F190 / prog 27 / default 31 7F"); }
+  else                           { TestStepFail("A13", "31 in default expected SNSIAS"); }
+}
+
+testcase TC_A14()
+{
+  byte wr[8];
+  byte wrExp[3];
+
+  TestCaseTitle("A14", "ext L1 persist across 10 02/10 03; prog stays locked");
+  if (EnterSession(0x03) == 0) { TestStepFail("A14", "enter extended"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("A14", "unlock L1"); return; }
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x80; wr[3] = 0x01;
+  wr[4] = 0xAA; wr[5] = 0xBB; wr[6] = 0xCC; wr[7] = 0xDD;
+  wrExp[0] = 0x6E; wrExp[1] = 0xF1; wrExp[2] = 0x80;
+  if (ExpectResp(wr, 8, wrExp, 3) == 0) { TestStepFail("A14", "2E while unlocked"); return; }
+  if (EnterSession(0x02) == 0) { TestStepFail("A14", "switch programming"); RestoreF180(); return; }
+  if (ExpNeg(wr, 8, 0x2E, 0x33) == 0) { TestStepFail("A14", "2E in prog expected SAD"); RestoreF180(); return; }
+  if (EnterSession(0x03) == 0) { TestStepFail("A14", "back to extended"); RestoreF180(); return; }
+  if (ExpectResp(wr, 8, wrExp, 3) == 0) { TestStepFail("A14", "2E after return should persist"); RestoreF180(); return; }
+  RestoreF180();
+  TestStepPass("A14", "L1 stays in extended; programming stays locked");
+}
+
+testcase TC_A15()
+{
+  byte wr[8];
+
+  TestCaseTitle("A15", "ext L1 unlock then 10 01/10 03 clears security");
+  if (EnterSession(0x03) == 0) { TestStepFail("A15", "enter extended"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("A15", "unlock L1"); return; }
+  if (EnterSession(0x01) == 0) { TestStepFail("A15", "to default"); return; }
+  if (EnterSession(0x03) == 0) { TestStepFail("A15", "back to extended"); return; }
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x80; wr[3] = 0x01;
+  wr[4] = 0x11; wr[5] = 0x22; wr[6] = 0x33; wr[7] = 0x44;
+  if (ExpNeg(wr, 8, 0x2E, 0x33)) { TestStepPass("A15", "2E -> 7F 2E 33 after default hop"); }
+  else                           { TestStepFail("A15", "expected SAD"); }
+}
+
+testcase TC_A16()
+{
+  dword i;
+
+  TestCaseTitle("A16", "20x session cycle 01-03-02-01");
+  ToDefault();
+  for (i = 0; i < 20; i++)
+  {
+    if (ExpectDsc(0x03) == 0) { TestStepFail("A16", "to extended"); return; }
+    if (ExpectDsc(0x02) == 0) { TestStepFail("A16", "to programming"); return; }
+    if (ExpectDsc(0x01) == 0) { TestStepFail("A16", "to default"); return; }
+  }
+  TestStepPass("A16", "20 cycles OK");
+}
+
+testcase TC_A17()
+{
+  byte req[2];
+  dword len;
+  dword i;
+  byte hop[3];
+
+  TestCaseTitle("A17", "1000x session cycle gap=0");
+  hop[0] = 0x03; hop[1] = 0x02; hop[2] = 0x01;
+  ToDefault();
+  for (i = 0; i < 1000; i++)
+  {
+    req[0] = 0x10; req[1] = hop[i % 3];
+    len = UdsRequestEx(req, 2, gResp, 2000, cReqId, 0);
+    if ((len != 6) || (gResp[0] != 0x50) || (gResp[1] != hop[i % 3]))
+    {
+      write("A17: i=%d", i);
+      TestStepFail("A17", "cycle failed");
+      return;
+    }
+  }
+  TestStepPass("A17", "1000 switches OK");
+}
+
+testcase TC_A18()
+{
+  byte wr[8];
+  byte rd[11];
+
+  TestCaseTitle("A18", "prog L1 persist across 10 03; extended stays locked");
+  if (EnterSession(0x02) == 0) { TestStepFail("A18", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("A18", "unlock L1 in prog"); return; }
+  if (EnterSession(0x03) == 0) { TestStepFail("A18", "switch extended"); return; }
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x80; wr[3] = 0x01;
+  wr[4] = 0x11; wr[5] = 0x22; wr[6] = 0x33; wr[7] = 0x44;
+  if (ExpNeg(wr, 8, 0x2E, 0x33) == 0) { TestStepFail("A18", "2E in ext expected SAD"); return; }
+  if (EnterSession(0x02) == 0) { TestStepFail("A18", "back to programming"); return; }
+  BuildDownloadReq(rd, cAppStart, 0x20);
+  if (ExpNeg(rd, 11, 0x34, 0x22)) { TestStepPass("A18", "ext locked; prog L1 kept (34 CNC not SAD)"); }
+  else                            { TestStepFail("A18", "34 expected CNC (unlocked, not erased)"); }
+}
+
+/* ---- B. security access ---- */
+testcase TC_B1()
+{
+  byte req[2];
+
+  TestCaseTitle("B1", "27 01 in default session");
+  ToDefault();
+  req[0] = 0x27; req[1] = 0x01;
+  if (ExpNeg(req, 2, 0x27, 0x7F)) { TestStepPass("B1", "7F 27 7F"); }
+  else                            { TestStepFail("B1", "expected SNSIAS"); }
+}
+
+testcase TC_B2()
+{
+  byte req[2];
+  dword len;
+
+  TestCaseTitle("B2", "27 01 seed request");
+  if (EnterSession(0x02) == 0) { TestStepFail("B2", "enter programming"); return; }
+  req[0] = 0x27; req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if ((len == 6) && (gResp[0] == 0x67) && (gResp[1] == 0x01)) { TestStepPass("B2", "seed received"); }
+  else                                                        { TestStepFail("B2", "seed failed"); }
+}
+
+testcase TC_B3()
+{
+  byte req[11];
+  dword len;
+  dword seed;
+  dword wrong;
+
+  TestCaseTitle("B3", "27 02 wrong key -> IK and stays locked");
+  if (EnterSession(0x02) == 0) { TestStepFail("B3", "enter programming"); return; }
+  req[0] = 0x27; req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if (len != 6) { TestStepFail("B3", "no seed"); return; }
+  seed = (((dword)gResp[2]) << 24) | (((dword)gResp[3]) << 16) |
+         (((dword)gResp[4]) << 8)  | ((dword)gResp[5]);
+  wrong = (seed ^ 0xFFFFFFFF) ^ 0x55;
+  req[0] = 0x27; req[1] = 0x02;
+  req[2] = (wrong >> 24) & 0xFF; req[3] = (wrong >> 16) & 0xFF;
+  req[4] = (wrong >> 8) & 0xFF;  req[5] = wrong & 0xFF;
+  if (ExpNeg(req, 6, 0x27, 0x35) == 0) { TestStepFail("B3", "expected IK"); return; }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x33)) { TestStepPass("B3", "7F 27 35 + still locked"); }
+  else                             { TestStepFail("B3", "security not locked"); }
+}
+
+testcase TC_B4()
+{
+  byte req[11];
+
+  TestCaseTitle("B4", "27 02 correct key unlocks security");
+  if (EnterSession(0x02) == 0) { TestStepFail("B4", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("B4", "unlock failed"); return; }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x22)) { TestStepPass("B4", "34 -> 7F 34 22 (past security gate)"); }
+  else                             { TestStepFail("B4", "expected CNC"); }
+}
+
+testcase TC_B5()
+{
+  byte req[2];
+  byte expect[6];
+
+  TestCaseTitle("B5", "27 01 when already unlocked -> zero seed");
+  if (EnterSession(0x02) == 0) { TestStepFail("B5", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("B5", "unlock failed"); return; }
+  req[0] = 0x27; req[1] = 0x01;
+  expect[0] = 0x67; expect[1] = 0x01; expect[2] = 0; expect[3] = 0; expect[4] = 0; expect[5] = 0;
+  if (ExpectResp(req, 2, expect, 6)) { TestStepPass("B5", "zero seed"); }
+  else                     { TestStepFail("B5", "expected zero seed"); }
+}
+
+testcase TC_B6()
+{
+  byte req[6];
+
+  TestCaseTitle("B6", "27 02 key without seed -> RSE");
+  if (EnterSession(0x02) == 0) { TestStepFail("B6", "enter programming"); return; }
+  req[0] = 0x27; req[1] = 0x02; req[2] = 0xAA; req[3] = 0xBB; req[4] = 0xCC; req[5] = 0xDD;
+  if (ExpNeg(req, 6, 0x27, 0x24)) { TestStepPass("B6", "7F 27 24"); }
+  else                            { TestStepFail("B6", "expected RSE"); }
+}
+
+testcase TC_B7()
+{
+  byte req[2];
+
+  TestCaseTitle("B7", "27 05 invalid sub-function");
+  if (EnterSession(0x02) == 0) { TestStepFail("B7", "enter programming"); return; }
+  req[0] = 0x27; req[1] = 0x05;
+  if (ExpNeg(req, 2, 0x27, 0x12)) { TestStepPass("B7", "7F 27 12"); }
+  else                            { TestStepFail("B7", "expected SFNS"); }
+}
+
+testcase TC_B8()
+{
+  byte req[11];
+
+  TestCaseTitle("B8", "L3 unlock does not grant L1 services");
+  if (EnterSession(0x02) == 0) { TestStepFail("B8", "enter programming"); return; }
+  if (DoUnlock(3) == 0)        { TestStepFail("B8", "L3 unlock failed"); return; }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x33)) { TestStepPass("B8", "34 -> 7F 34 33"); }
+  else                             { TestStepFail("B8", "expected SAD"); }
+}
+
+testcase TC_B9()
+{
+  byte req[6];
+
+  TestCaseTitle("B9", "27 81 suppress still requests seed (27 02 dummy -> IK)");
+  if (EnterSession(0x02) == 0) { TestStepFail("B9", "enter programming"); return; }
+  req[0] = 0x27; req[1] = 0x81;
+  if (ExpNoResp(req, 2) == 0) { TestStepFail("B9", "expected no 67 01"); return; }
+  req[0] = 0x27; req[1] = 0x02;
+  req[2] = 0x11; req[3] = 0x22; req[4] = 0x33; req[5] = 0x44;
+  if (ExpNeg(req, 6, 0x27, 0x35)) { TestStepPass("B9", "7F 27 35 (seed was stored)"); }
+  else                            { TestStepFail("B9", "expected IK (not RSE)"); }
+}
+
+testcase TC_B10()
+{
+  byte req[2];
+
+  TestCaseTitle("B10", "27 00 illegal sub-function -> SFNS");
+  if (EnterSession(0x02) == 0) { TestStepFail("B10", "enter programming"); return; }
+  req[0] = 0x27; req[1] = 0x00;
+  if (ExpNeg(req, 2, 0x27, 0x12)) { TestStepPass("B10", "7F 27 12"); }
+  else                            { TestStepFail("B10", "expected SFNS"); }
+}
+
+testcase TC_B11()
+{
+  byte seedReq[3];
+  byte shortKey[4];
+
+  TestCaseTitle("B11", "27 01 extra byte / 27 02 short key -> IMLOIF");
+  if (EnterSession(0x02) == 0) { TestStepFail("B11", "enter programming"); return; }
+  seedReq[0] = 0x27; seedReq[1] = 0x01; seedReq[2] = 0x00;
+  if (ExpNeg(seedReq, 3, 0x27, 0x13) == 0) { TestStepFail("B11", "27 01 extra expected IMLOIF"); return; }
+  if (UdsRequest(seedReq, 2, gResp, 2000, cReqId) != 6)
+  {
+    TestStepFail("B11", "seed for short-key check");
+    return;
+  }
+  shortKey[0] = 0x27; shortKey[1] = 0x02; shortKey[2] = 0xAA; shortKey[3] = 0xBB;
+  if (ExpNeg(shortKey, 4, 0x27, 0x13)) { TestStepPass("B11", "7F 27 13"); }
+  else                                  { TestStepFail("B11", "27 02 short key expected IMLOIF"); }
+}
+
+testcase TC_B12()
+{
+  byte req[2];
+
+  TestCaseTitle("B12", "3 wrong keys -> 0x36 then seed -> 0x37");
+  if (EnterSession(0x02) == 0) { TestStepFail("B12", "enter programming"); return; }
+  /* B3/B9 leave SaAttempts > 0 (delay/attempt survive session hop).
+   * Unlock success zeros the counter; 10 01 then locks again. */
+  if (DoUnlock(1) == 0)        { TestStepFail("B12", "reset attempt counter"); return; }
+  ToDefault();
+  if (EnterSession(0x02) == 0) { TestStepFail("B12", "re-enter programming"); return; }
+  if (SendWrongKey(0x35) == 0) { TestStepFail("B12", "1st IK expected 0x35"); return; }
+  if (SendWrongKey(0x35) == 0) { TestStepFail("B12", "2nd IK expected 0x35"); return; }
+  if (SendWrongKey(0x36) == 0) { TestStepFail("B12", "3rd IK expected 0x36"); return; }
+  req[0] = 0x27; req[1] = 0x01;
+  if (ExpNeg(req, 2, 0x27, 0x37)) { TestStepPass("B12", "7F 27 35/35/36 then 7F 27 37"); }
+  else                            { TestStepFail("B12", "seed during delay expected 0x37"); }
+}
+
+testcase TC_B13()
+{
+  byte req[2];
+  byte tp[2];
+  byte tpExp[2];
+  dword len;
+  dword i;
+
+  TestCaseTitle("B13", "after 0x36 wait 10 s then 27 01 allowed");
+  if (EnterSession(0x02) == 0) { TestStepFail("B13", "enter programming"); return; }
+  req[0] = 0x27; req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if ((len == 3) && (gResp[0] == 0x7F) && (gResp[2] == 0x37))
+  {
+    /* delay already running (typically after B12) */
+  }
+  else
+  {
+    if (SendWrongKey(0x35) == 0) { TestStepFail("B13", "arm delay: 1st IK"); return; }
+    if (SendWrongKey(0x35) == 0) { TestStepFail("B13", "arm delay: 2nd IK"); return; }
+    if (SendWrongKey(0x36) == 0) { TestStepFail("B13", "arm delay: 3rd IK"); return; }
+  }
+  tp[0] = 0x3E; tp[1] = 0x00;
+  tpExp[0] = 0x7E; tpExp[1] = 0x00;
+  for (i = 0; i < 11; i++)
+  {
+    if (ExpectResp(tp, 2, tpExp, 2) == 0) { TestStepFail("B13", "3E keepalive"); return; }
+    TestWaitForTimeout(1000);
+  }
+  req[0] = 0x27; req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if ((len == 6) && (gResp[0] == 0x67) && (gResp[1] == 0x01))
+  {
+    TestStepPass("B13", "67 01 after delay");
+  }
+  else
+  {
+    TestStepFail("B13", "seed after 10 s delay failed");
+  }
+}
+
+/* ---- C. permission matrix / negative codes ---- */
+testcase TC_C1()
+{
+  byte req[3];
+  byte expect[8];
+
+  TestCaseTitle("C1", "22 F180 read boot software");
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x80;
+  expect[0] = 0x62; expect[1] = 0xF1; expect[2] = 0x80; expect[3] = 0x01;
+  expect[4] = 0x42; expect[5] = 0x4F; expect[6] = 0x4F; expect[7] = 0x54;
+  if (ExpectResp(req, 3, expect, 8)) { TestStepPass("C1", "62 F1 80 01 42 4F 4F 54"); }
+  else                     { TestStepFail("C1", "response mismatch"); }
+}
+
+testcase TC_C2()
+{
+  byte req[3];
+
+  TestCaseTitle("C2", "22 invalid DID -> ROOR");
+  req[0] = 0x22; req[1] = 0xF2; req[2] = 0x00;
+  if (ExpNeg(req, 3, 0x22, 0x31)) { TestStepPass("C2", "7F 22 31"); }
+  else                            { TestStepFail("C2", "expected ROOR"); }
+}
+
+testcase TC_C3()
+{
+  byte req[2];
+
+  TestCaseTitle("C3", "22 wrong length -> IMLOIF");
+  req[0] = 0x22; req[1] = 0xF1;
+  if (ExpNeg(req, 2, 0x22, 0x13)) { TestStepPass("C3", "7F 22 13"); }
+  else                            { TestStepFail("C3", "expected IMLOIF"); }
+}
+
+testcase TC_C4()
+{
+  byte req[8];
+
+  TestCaseTitle("C4", "2E in default -> SNSIAS");
+  req[0] = 0x2E; req[1] = 0xF1; req[2] = 0x80; req[3] = 0x01;
+  req[4] = 0xAA; req[5] = 0xBB; req[6] = 0xCC; req[7] = 0xDD;
+  if (ExpNeg(req, 8, 0x2E, 0x7F)) { TestStepPass("C4", "7F 2E 7F"); }
+  else                            { TestStepFail("C4", "expected SNSIAS"); }
+}
+
+testcase TC_C5()
+{
+  byte req[8];
+
+  TestCaseTitle("C5", "2E in extended locked -> SAD");
+  if (EnterSession(0x03) == 0) { TestStepFail("C5", "enter extended"); return; }
+  req[0] = 0x2E; req[1] = 0xF1; req[2] = 0x80; req[3] = 0x01;
+  req[4] = 0xAA; req[5] = 0xBB; req[6] = 0xCC; req[7] = 0xDD;
+  if (ExpNeg(req, 8, 0x2E, 0x33)) { TestStepPass("C5", "7F 2E 33"); }
+  else                            { TestStepFail("C5", "expected SAD"); }
+}
+
+testcase TC_C6()
+{
+  byte wr[8];
+  byte wrExp[3];
+  byte rd[3];
+  byte rdExp[8];
+
+  TestCaseTitle("C6", "2E write / 22 read-back in extended with L1");
+  if (EnterSession(0x03) == 0) { TestStepFail("C6", "enter extended"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C6", "unlock failed"); return; }
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x80; wr[3] = 0x01;
+  wr[4] = 0xAA; wr[5] = 0xBB; wr[6] = 0xCC; wr[7] = 0xDD;
+  wrExp[0] = 0x6E; wrExp[1] = 0xF1; wrExp[2] = 0x80;
+  if (ExpectResp(wr, 8, wrExp, 3) == 0)
+  {
+    TestStepFail("C6", "write failed");
+    return;
+  }
+  rd[0] = 0x22; rd[1] = 0xF1; rd[2] = 0x80;
+  rdExp[0] = 0x62; rdExp[1] = 0xF1; rdExp[2] = 0x80; rdExp[3] = 0x01;
+  rdExp[4] = 0xAA; rdExp[5] = 0xBB; rdExp[6] = 0xCC; rdExp[7] = 0xDD;
+  if (ExpectResp(rd, 3, rdExp, 8)) { TestStepPass("C6", "write + read-back OK"); }
+  else                      { TestStepFail("C6", "read-back mismatch"); }
+  /* restore the original F180 content so later cases (D1/G2) stay order-independent */
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x80; wr[3] = 0x01;
+  wr[4] = 0x42; wr[5] = 0x4F; wr[6] = 0x4F; wr[7] = 0x54;
+  ExpectResp(wr, 8, wrExp, 3);
+}
+
+testcase TC_C7()
+{
+  byte req[4];
+
+  TestCaseTitle("C7", "31 in default -> SNSIAS");
+  req[0] = 0x31; req[1] = 0x01; req[2] = 0xFF; req[3] = 0x01;
+  if (ExpNeg(req, 4, 0x31, 0x7F)) { TestStepPass("C7", "7F 31 7F"); }
+  else                            { TestStepFail("C7", "expected SNSIAS"); }
+}
+
+testcase TC_C8()
+{
+  byte req[4];
+
+  TestCaseTitle("C8", "31 in programming locked -> SAD");
+  if (EnterSession(0x02) == 0) { TestStepFail("C8", "enter programming"); return; }
+  req[0] = 0x31; req[1] = 0x01; req[2] = 0xFF; req[3] = 0x01;
+  if (ExpNeg(req, 4, 0x31, 0x33)) { TestStepPass("C8", "7F 31 33"); }
+  else                            { TestStepFail("C8", "expected SAD"); }
+}
+
+testcase TC_C9()
+{
+  byte req[4];
+
+  TestCaseTitle("C9", "31 FF01 before programming -> CNC");
+  if (EnterSession(0x02) == 0) { TestStepFail("C9", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C9", "unlock failed"); return; }
+  req[0] = 0x31; req[1] = 0x01; req[2] = 0xFF; req[3] = 0x01;
+  if (ExpNeg(req, 4, 0x31, 0x22)) { TestStepPass("C9", "7F 31 22"); }
+  else                            { TestStepFail("C9", "expected CNC"); }
+}
+
+testcase TC_C10()
+{
+  byte req[4];
+
+  TestCaseTitle("C10", "31 SF=stop -> SFNS");
+  if (EnterSession(0x02) == 0) { TestStepFail("C10", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C10", "unlock failed"); return; }
+  req[0] = 0x31; req[1] = 0x02; req[2] = 0xFF; req[3] = 0x01;
+  if (ExpNeg(req, 4, 0x31, 0x12)) { TestStepPass("C10", "7F 31 12"); }
+  else                            { TestStepFail("C10", "expected SFNS"); }
+}
+
+testcase TC_C11()
+{
+  byte req[4];
+
+  TestCaseTitle("C11", "31 invalid RID -> ROOR");
+  if (EnterSession(0x02) == 0) { TestStepFail("C11", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C11", "unlock failed"); return; }
+  req[0] = 0x31; req[1] = 0x01; req[2] = 0xFF; req[3] = 0x99;
+  if (ExpNeg(req, 4, 0x31, 0x31)) { TestStepPass("C11", "7F 31 31"); }
+  else                            { TestStepFail("C11", "expected ROOR"); }
+}
+
+testcase TC_C12()
+{
+  byte req[11];
+
+  TestCaseTitle("C12", "34 in default -> SNSIAS");
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x7F)) { TestStepPass("C12", "7F 34 7F"); }
+  else                             { TestStepFail("C12", "expected SNSIAS"); }
+}
+
+testcase TC_C13()
+{
+  byte req[11];
+
+  TestCaseTitle("C13", "34 in extended -> SNSIAS");
+  if (EnterSession(0x03) == 0) { TestStepFail("C13", "enter extended"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C13", "unlock failed"); return; }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x7F)) { TestStepPass("C13", "7F 34 7F"); }
+  else                             { TestStepFail("C13", "expected SNSIAS"); }
+}
+
+testcase TC_C14()
+{
+  byte req[11];
+
+  TestCaseTitle("C14", "34 in programming locked -> SAD");
+  if (EnterSession(0x02) == 0) { TestStepFail("C14", "enter programming"); return; }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x33)) { TestStepPass("C14", "7F 34 33"); }
+  else                             { TestStepFail("C14", "expected SAD"); }
+}
+
+testcase TC_C15()
+{
+  byte req[11];
+
+  TestCaseTitle("C15", "34 before erase -> CNC");
+  if (EnterSession(0x02) == 0) { TestStepFail("C15", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C15", "unlock failed"); return; }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x22)) { TestStepPass("C15", "7F 34 22"); }
+  else                             { TestStepFail("C15", "expected CNC"); }
+}
+
+testcase TC_C16()
+{
+  byte req[34];
+  dword i;
+
+  TestCaseTitle("C16", "36 before RequestDownload -> RSE");
+  if (EnterSession(0x02) == 0) { TestStepFail("C16", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C16", "unlock failed"); return; }
+  req[0] = 0x36; req[1] = 0x01;
+  for (i = 0; i < 32; i++) { req[2 + i] = 0xAA; }
+  if (ExpNeg(req, 34, 0x36, 0x24)) { TestStepPass("C16", "7F 36 24"); }
+  else                             { TestStepFail("C16", "expected RSE"); }
+}
+
+testcase TC_C17()
+{
+  byte req[1];
+
+  TestCaseTitle("C17", "37 before RequestDownload -> RSE");
+  if (EnterSession(0x02) == 0) { TestStepFail("C17", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C17", "unlock failed"); return; }
+  req[0] = 0x37;
+  if (ExpNeg(req, 1, 0x37, 0x24)) { TestStepPass("C17", "7F 37 24"); }
+  else                            { TestStepFail("C17", "expected RSE"); }
+}
+
+testcase TC_C18()
+{
+  byte req[2];
+  byte expect[2];
+
+  TestCaseTitle("C18", "3E 00 tester present");
+  req[0] = 0x3E; req[1] = 0x00;
+  expect[0] = 0x7E; expect[1] = 0x00;
+  if (ExpectResp(req, 2, expect, 2)) { TestStepPass("C18", "7E 00"); }
+  else                     { TestStepFail("C18", "response mismatch"); }
+}
+
+testcase TC_C19()
+{
+  byte req[2];
+
+  TestCaseTitle("C19", "3E 80 suppress -> no response");
+  req[0] = 0x3E; req[1] = 0x80;
+  if (ExpNoResp(req, 2)) { TestStepPass("C19", "no response"); }
+  else                   { TestStepFail("C19", "unexpected response"); }
+}
+
+testcase TC_C20()
+{
+  byte req[2];
+
+  TestCaseTitle("C20", "3E invalid sub-function -> SFNS");
+  req[0] = 0x3E; req[1] = 0x01;
+  if (ExpNeg(req, 2, 0x3E, 0x12)) { TestStepPass("C20", "7F 3E 12"); }
+  else                            { TestStepFail("C20", "expected SFNS"); }
+}
+
+testcase TC_C21()
+{
+  byte req[2];
+
+  TestCaseTitle("C21", "unknown SID -> SNS");
+  req[0] = 0x99; req[1] = 0x00;
+  if (ExpNeg(req, 2, 0x99, 0x11)) { TestStepPass("C21", "7F 99 11"); }
+  else                            { TestStepFail("C21", "expected SNS"); }
+}
+
+testcase TC_C22()
+{
+  byte req[3];
+  dword len;
+
+  TestCaseTitle("C22", "extended 22 F187 / F18C / F193 / F189 stub DIDs");
+  if (EnterSession(0x03) == 0) { TestStepFail("C22", "enter extended"); return; }
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x87;
+  len = UdsRequest(req, 3, gResp, 2000, cReqId);
+  if ((len != 7) || (gResp[0] != 0x62) || (gResp[1] != 0xF1) || (gResp[2] != 0x87))
+  {
+    TestStepFail("C22", "F187 mismatch");
+    return;
+  }
+  req[2] = 0x8C;
+  len = UdsRequest(req, 3, gResp, 2000, cReqId);
+  if ((len != 7) || (gResp[0] != 0x62) || (gResp[2] != 0x8C))
+  {
+    TestStepFail("C22", "F18C mismatch");
+    return;
+  }
+  req[2] = 0x93;
+  len = UdsRequest(req, 3, gResp, 2000, cReqId);
+  if ((len != 7) || (gResp[0] != 0x62) || (gResp[2] != 0x93))
+  {
+    TestStepFail("C22", "F193 mismatch");
+    return;
+  }
+  req[2] = 0x89;
+  len = UdsRequest(req, 3, gResp, 2000, cReqId);
+  if ((len == 16) && (gResp[0] == 0x62) && (gResp[1] == 0xF1) && (gResp[2] == 0x89))
+  {
+    TestStepPass("C22", "F187/F18C/F193/F189 OK");
+  }
+  else
+  {
+    TestStepFail("C22", "F189 mismatch");
+  }
+}
+
+testcase TC_C23()
+{
+  byte req[3];
+  dword len;
+  dword i;
+
+  TestCaseTitle("C23", "extended 22 F190 VIN 20-byte multi-frame response");
+  if (EnterSession(0x03) == 0) { TestStepFail("C23", "enter extended"); return; }
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x90;
+  len = UdsRequest(req, 3, gResp, 2000, cReqId);
+  if ((len != 20) || (gResp[0] != 0x62) || (gResp[1] != 0xF1) || (gResp[2] != 0x90))
+  {
+    TestStepFail("C23", "VIN header/len mismatch");
+    return;
+  }
+  for (i = 3; i < 20; i++)
+  {
+    if (gResp[i] != 0)
+    {
+      TestStepFail("C23", "VIN stub not zero");
+      return;
+    }
+  }
+  TestStepPass("C23", "62 F1 90 + 17 zeros (ISO-TP FF/CF)");
+}
+
+testcase TC_C24()
+{
+  byte req[3];
+
+  TestCaseTitle("C24", "22 F198 not readable -> ROOR");
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x98;
+  if (ExpNeg(req, 3, 0x22, 0x31)) { TestStepPass("C24", "7F 22 31"); }
+  else                            { TestStepFail("C24", "expected ROOR"); }
+}
+
+testcase TC_C25()
+{
+  byte req[2];
+
+  TestCaseTitle("C25", "3E/11 length 1 -> IMLOIF; 11 02 -> SFNS");
+  req[0] = 0x3E;
+  if (ExpNeg(req, 1, 0x3E, 0x13) == 0) { TestStepFail("C25", "3E expected IMLOIF"); return; }
+  req[0] = 0x11;
+  if (ExpNeg(req, 1, 0x11, 0x13) == 0) { TestStepFail("C25", "11 expected IMLOIF"); return; }
+  req[0] = 0x11; req[1] = 0x02;
+  if (ExpNeg(req, 2, 0x11, 0x12)) { TestStepPass("C25", "7F 3E 13 / 7F 11 13 / 7F 11 12"); }
+  else                            { TestStepFail("C25", "11 02 expected SFNS"); }
+}
+
+testcase TC_C26()
+{
+  byte req[4];
+
+  TestCaseTitle("C26", "31 03 RequestResults -> SFNS");
+  if (EnterSession(0x02) == 0) { TestStepFail("C26", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C26", "unlock"); return; }
+  req[0] = 0x31; req[1] = 0x03; req[2] = 0xFF; req[3] = 0x01;
+  if (ExpNeg(req, 4, 0x31, 0x12)) { TestStepPass("C26", "7F 31 12"); }
+  else                            { TestStepFail("C26", "expected SFNS"); }
+}
+
+testcase TC_C27()
+{
+  byte bad[6];
+  byte shortWr[5];
+
+  TestCaseTitle("C27", "2E invalid DID / wrong length in extended L1");
+  if (EnterSession(0x03) == 0) { TestStepFail("C27", "enter extended"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C27", "unlock"); return; }
+  bad[0] = 0x2E; bad[1] = 0xF2; bad[2] = 0x00;
+  bad[3] = 0x00; bad[4] = 0x00; bad[5] = 0x00;
+  if (ExpNeg(bad, 6, 0x2E, 0x31) == 0) { TestStepFail("C27", "invalid DID expected ROOR"); return; }
+  shortWr[0] = 0x2E; shortWr[1] = 0xF1; shortWr[2] = 0x80;
+  shortWr[3] = 0x01; shortWr[4] = 0xAA;
+  if (ExpNeg(shortWr, 5, 0x2E, 0x13)) { TestStepPass("C27", "7F 2E 31 / 7F 2E 13"); }
+  else                                { TestStepFail("C27", "short write expected IMLOIF"); }
+}
+
+testcase TC_C28()
+{
+  byte req[2];
+  dword len;
+
+  TestCaseTitle("C28", "27 01 seed allowed in extended session");
+  if (EnterSession(0x03) == 0) { TestStepFail("C28", "enter extended"); return; }
+  req[0] = 0x27; req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  if ((len == 6) && (gResp[0] == 0x67) && (gResp[1] == 0x01))
+  {
+    TestStepPass("C28", "67 01 seed in extended");
+  }
+  else
+  {
+    TestStepFail("C28", "seed in extended failed");
+  }
+}
+
+testcase TC_C29()
+{
+  byte wr[20];
+  byte wrExp[3];
+  byte rd[3];
+  dword i;
+
+  TestCaseTitle("C29", "2E F198 fingerprint write / not readable by 22");
+  if (EnterSession(0x03) == 0) { TestStepFail("C29", "enter extended"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("C29", "unlock"); return; }
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x98;
+  for (i = 0; i < 17; i++) { wr[3 + i] = (0xA0 + i) & 0xFF; }
+  wrExp[0] = 0x6E; wrExp[1] = 0xF1; wrExp[2] = 0x98;
+  if (ExpectResp(wr, 20, wrExp, 3) == 0)
+  {
+    TestStepFail("C29", "F198 write failed");
+    return;
+  }
+  rd[0] = 0x22; rd[1] = 0xF1; rd[2] = 0x98;
+  if (ExpNeg(rd, 3, 0x22, 0x31)) { TestStepPass("C29", "6E F1 98 then 22 -> ROOR"); }
+  else                           { TestStepFail("C29", "F198 should not be readable"); }
+}
+
+testcase TC_C30()
+{
+  byte extra[4];
+  byte saShort[1];
+
+  TestCaseTitle("C30", "22 extra byte / 27 length 1 -> IMLOIF");
+  extra[0] = 0x22; extra[1] = 0xF1; extra[2] = 0x80; extra[3] = 0x00;
+  if (ExpNeg(extra, 4, 0x22, 0x13) == 0) { TestStepFail("C30", "22 extra expected IMLOIF"); return; }
+  saShort[0] = 0x27;
+  if (EnterSession(0x02) == 0) { TestStepFail("C30", "enter programming"); return; }
+  if (ExpNeg(saShort, 1, 0x27, 0x13)) { TestStepPass("C30", "7F 22 13 / 7F 27 13"); }
+  else                                { TestStepFail("C30", "27 len1 expected IMLOIF"); }
+}
+
+testcase TC_C31()
+{
+  byte req[3];
+  dword len;
+
+  TestCaseTitle("C31", "business DIDs ROOR in default/prog; OK in extended");
+  ToDefault();
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x90;
+  if (ExpNeg(req, 3, 0x22, 0x31) == 0) { TestStepFail("C31", "default F190 expected ROOR"); return; }
+  req[2] = 0x87;
+  if (ExpNeg(req, 3, 0x22, 0x31) == 0) { TestStepFail("C31", "default F187 expected ROOR"); return; }
+  req[2] = 0x80;
+  len = UdsRequest(req, 3, gResp, 2000, cReqId);
+  if ((len != 8) || (gResp[0] != 0x62) || (gResp[2] != 0x80))
+  {
+    TestStepFail("C31", "F180 should be readable in default");
+    return;
+  }
+  if (EnterSession(0x02) == 0) { TestStepFail("C31", "enter programming"); return; }
+  req[2] = 0x90;
+  if (ExpNeg(req, 3, 0x22, 0x31) == 0) { TestStepFail("C31", "prog F190 expected ROOR"); return; }
+  if (EnterSession(0x03) == 0) { TestStepFail("C31", "enter extended"); return; }
+  len = UdsRequest(req, 3, gResp, 2000, cReqId);
+  if ((len == 20) && (gResp[0] == 0x62) && (gResp[2] == 0x90))
+  {
+    TestStepPass("C31", "F190/F187 31 in D/P; F180 in D; F190 in E");
+  }
+  else
+  {
+    TestStepFail("C31", "F190 in extended failed");
+  }
+}
+
+/* ---- D. timing ---- */
+testcase TC_D1()
+{
+  byte req[3];
+  dword len;
+
+  TestCaseTitle("D1", "P2 latency: 22 F180 within 60 ms");
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x80;
+  len = UdsRequest(req, 3, gResp, 60, cReqId);
+  if ((len == 8) && (gResp[0] == 0x62)) { TestStepPass("D1", "response within P2"); }
+  else                                  { TestStepFail("D1", "late or missing response"); }
+}
+
+testcase TC_D2()
+{
+  byte req[2];
+  byte expect[6];
+
+  TestCaseTitle("D2", "0x10 advertises P2=50ms P2*=5000ms");
+  req[0] = 0x10; req[1] = 0x01;
+  expect[0] = 0x50; expect[1] = 0x01; expect[2] = 0x00; expect[3] = 0x05; expect[4] = 0x01; expect[5] = 0xF4;
+  if (ExpectResp(req, 2, expect, 6)) { TestStepPass("D2", "00 05 / 01 F4"); }
+  else                     { TestStepFail("D2", "advertisement mismatch"); }
+}
+
+testcase TC_D3()
+{
+  byte req[11];
+
+  TestCaseTitle("D3", "S3 timeout returns to default session");
+  if (EnterSession(0x03) == 0) { TestStepFail("D3", "enter extended"); return; }
+  TestWaitForTimeout(cS3Ms + 1000);
+  BuildDownloadReq(req, cAppStart, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x7F)) { TestStepPass("D3", "34 -> 7F 34 7F (default)"); }
+  else                             { TestStepFail("D3", "session did not expire"); }
+}
+
+testcase TC_D4()
+{
+  byte req[2];
+  byte expect[2];
+  dword i;
+
+  TestCaseTitle("D4", "3E keepalive prevents S3 expiry");
+  if (EnterSession(0x03) == 0) { TestStepFail("D4", "enter extended"); return; }
+  req[0] = 0x3E; req[1] = 0x00;
+  expect[0] = 0x7E; expect[1] = 0x00;
+  for (i = 0; i < 4; i++)
+  {
+    if (ExpectResp(req, 2, expect, 2) == 0) { TestStepFail("D4", "3E keepalive failed"); return; }
+    TestWaitForTimeout(1000);
+  }
+  req[0] = 0x27; req[1] = 0x01;
+  if (ExpNeg(req, 2, 0x27, 0x7F)) { TestStepFail("D4", "session expired"); }
+  else                            { TestStepPass("D4", "still in extended (seed request answered)"); }
+}
+
+testcase TC_D5()
+{
+  byte wr[8];
+  byte wrExp[3];
+  byte sa[2];
+  byte wdbi[8];
+  byte rd[3];
+  byte rdExp[8];
+
+  TestCaseTitle("D5", "S3 to default: unlock cleared, DID RAM reset");
+  if (EnterSession(0x03) == 0) { TestStepFail("D5", "enter extended"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("D5", "unlock"); return; }
+  wr[0] = 0x2E; wr[1] = 0xF1; wr[2] = 0x80; wr[3] = 0x01;
+  wr[4] = 0xAA; wr[5] = 0xBB; wr[6] = 0xCC; wr[7] = 0xDD;
+  wrExp[0] = 0x6E; wrExp[1] = 0xF1; wrExp[2] = 0x80;
+  if (ExpectResp(wr, 8, wrExp, 3) == 0) { TestStepFail("D5", "2E while unlocked"); return; }
+  TestWaitForTimeout(cS3Ms + 1000);
+  sa[0] = 0x27; sa[1] = 0x01;
+  if (ExpNeg(sa, 2, 0x27, 0x7F) == 0) { TestStepFail("D5", "27 after S3 expected SNSIAS"); return; }
+  wdbi[0] = 0x2E; wdbi[1] = 0xF1; wdbi[2] = 0x80; wdbi[3] = 0x01;
+  wdbi[4] = 0x11; wdbi[5] = 0x22; wdbi[6] = 0x33; wdbi[7] = 0x44;
+  if (ExpNeg(wdbi, 8, 0x2E, 0x7F) == 0) { TestStepFail("D5", "2E after S3 expected SNSIAS"); return; }
+  rd[0] = 0x22; rd[1] = 0xF1; rd[2] = 0x80;
+  rdExp[0] = 0x62; rdExp[1] = 0xF1; rdExp[2] = 0x80; rdExp[3] = 0x01;
+  rdExp[4] = 0x42; rdExp[5] = 0x4F; rdExp[6] = 0x4F; rdExp[7] = 0x54;
+  if (ExpectResp(rd, 3, rdExp, 8)) { TestStepPass("D5", "S3 -> default: 27/2E 7F; F180 restored"); }
+  else                            { TestStepFail("D5", "F180 after S3 should be factory BOOT"); }
+}
+
+testcase TC_D6()
+{
+  byte tp[2];
+  byte sa[2];
+  dword i;
+  dword len;
+
+  TestCaseTitle("D6", "3E 80 keepalive then S3 after stop");
+  if (EnterSession(0x03) == 0) { TestStepFail("D6", "enter extended"); return; }
+  tp[0] = 0x3E; tp[1] = 0x80;
+  for (i = 0; i < 6; i++)
+  {
+    if (ExpNoResp(tp, 2) == 0) { TestStepFail("D6", "3E 80 unexpected response"); return; }
+    TestWaitForTimeout(1000);
+  }
+  sa[0] = 0x27; sa[1] = 0x01;
+  len = UdsRequest(sa, 2, gResp, 2000, cReqId);
+  if ((len != 6) || (gResp[0] != 0x67))
+  {
+    TestStepFail("D6", "session dropped despite 3E 80");
+    return;
+  }
+  TestWaitForTimeout(cS3Ms + 1000);
+  if (ExpNeg(sa, 2, 0x27, 0x7F)) { TestStepPass("D6", "3E 80 held S3; stop then default"); }
+  else                           { TestStepFail("D6", "expected SNSIAS after stop"); }
+}
+
+testcase TC_D7()
+{
+  byte req[2];
+  dword len;
+
+  TestCaseTitle("D7", "10 03 response within 20 ms");
+  ToDefault();
+  req[0] = 0x10; req[1] = 0x03;
+  len = UdsRequestEx(req, 2, gResp, 20, cReqId, 0);
+  if ((len == 6) && (gResp[0] == 0x50) && (gResp[1] == 0x03))
+  {
+    TestStepPass("D7", "50 03 within 20 ms");
+  }
+  else
+  {
+    TestStepFail("D7", "late or missing 50 03");
+  }
+}
+
+/* ---- H. CanTp TX serialize (busy/retry; no tester 20 ms gap) ---- */
+testcase TC_H1()
+{
+  byte req[2];
+  dword len;
+  dword i;
+  byte sess[4];
+
+  TestCaseTitle("H1", "back-to-back 10 01/02/03/01 gap=0 (TX serialize)");
+  sess[0] = 0x01; sess[1] = 0x02; sess[2] = 0x03; sess[3] = 0x01;
+  for (i = 0; i < 4; i++)
+  {
+    req[0] = 0x10;
+    req[1] = sess[i];
+    len = UdsRequestEx(req, 2, gResp, 2000, cReqId, 0);
+    if ((len != 6) || (gResp[0] != 0x50) || (gResp[1] != sess[i]))
+    {
+      write("H1: i=%d len=%d SID=%02X", i, len, gResp[0]);
+      TestStepFail("H1", "missing 50 xx (TX dropped under full-duplex TX busy?)");
+      return;
+    }
+  }
+  TestStepPass("H1", "50 01/02/03/01 all received");
+}
+
+testcase TC_H2()
+{
+  byte req[3];
+  dword len;
+  dword i;
+
+  TestCaseTitle("H2", "8x 22 F180 gap=0 (consecutive SF TX)");
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x80;
+  for (i = 0; i < 8; i++)
+  {
+    len = UdsRequestEx(req, 3, gResp, 2000, cReqId, 0);
+    if ((len != 8) || (gResp[0] != 0x62) || (gResp[1] != 0xF1) || (gResp[2] != 0x80))
+    {
+      write("H2: i=%d len=%d", i, len);
+      TestStepFail("H2", "22 F180 dropped");
+      return;
+    }
+  }
+  TestStepPass("H2", "8 consecutive 62 F180");
+}
+
+testcase TC_H3()
+{
+  byte vin[3];
+  byte rd[3];
+  byte dsc[2];
+  dword len;
+
+  TestCaseTitle("H3", "ext 22 F190 MF TX then 22 F180 then 10 02 gap=0");
+  if (EnterSession(0x03) == 0) { TestStepFail("H3", "enter extended"); return; }
+  vin[0] = 0x22; vin[1] = 0xF1; vin[2] = 0x90;
+  len = UdsRequestEx(vin, 3, gResp, 2000, cReqId, 0);
+  if ((len != 20) || (gResp[0] != 0x62) || (gResp[2] != 0x90))
+  {
+    TestStepFail("H3", "VIN multi-frame failed");
+    return;
+  }
+  rd[0] = 0x22; rd[1] = 0xF1; rd[2] = 0x80;
+  len = UdsRequestEx(rd, 3, gResp, 2000, cReqId, 0);
+  if ((len != 8) || (gResp[0] != 0x62) || (gResp[2] != 0x80))
+  {
+    TestStepFail("H3", "F180 after VIN TX dropped");
+    return;
+  }
+  dsc[0] = 0x10; dsc[1] = 0x02;
+  len = UdsRequestEx(dsc, 2, gResp, 2000, cReqId, 0);
+  if ((len == 6) && (gResp[0] == 0x50) && (gResp[1] == 0x02))
+  {
+    TestStepPass("H3", "MF then SF then 50 02 kept");
+  }
+  else
+  {
+    TestStepFail("H3", "50 02 dropped after MF TX");
+  }
+}
+
+testcase TC_H4()
+{
+  byte dsc[2];
+  byte req[11];
+  dword len;
+
+  TestCaseTitle("H4", "10 02 then immediate 11-byte 34 (SF TX then MF RX)");
+  dsc[0] = 0x10; dsc[1] = 0x02;
+  len = UdsRequestEx(dsc, 2, gResp, 2000, cReqId, 0);
+  if ((len != 6) || (gResp[0] != 0x50))
+  {
+    TestStepFail("H4", "10 02 failed");
+    return;
+  }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  len = UdsRequestEx(req, 11, gResp, 2000, cReqId, 0);
+  if ((len == 3) && (gResp[0] == 0x7F) && (gResp[1] == 0x34) && (gResp[2] == 0x33))
+  {
+    TestStepPass("H4", "FC + 7F 34 33 (locked, TX not dropped)");
+  }
+  else
+  {
+    write("H4: len=%d SID=%02X", len, gResp[0]);
+    TestStepFail("H4", "expected 7F 34 33 after immediate 34");
+  }
+}
+
+testcase TC_H5()
+{
+  byte tp[2];
+  byte rd[3];
+  dword len;
+
+  TestCaseTitle("H5", "functional 3E 00 then physical 22 F180 gap=0");
+  tp[0] = 0x3E; tp[1] = 0x00;
+  len = UdsRequestEx(tp, 2, gResp, 2000, cFunctId, 0);
+  if ((len != 2) || (gResp[0] != 0x7E))
+  {
+    TestStepFail("H5", "functional 3E failed");
+    return;
+  }
+  rd[0] = 0x22; rd[1] = 0xF1; rd[2] = 0x80;
+  len = UdsRequestEx(rd, 3, gResp, 2000, cReqId, 0);
+  if ((len == 8) && (gResp[0] == 0x62) && (gResp[2] == 0x80))
+  {
+    TestStepPass("H5", "7E 00 then 62 F180 (phys after funct TX)");
+  }
+  else
+  {
+    TestStepFail("H5", "physical 22 after functional TX dropped");
+  }
+}
+
+/* ---- E. flash programming (destructive) ---- */
+testcase TC_E1()
+{
+  byte er[4];
+  byte ee[4];
+  byte rd[11];
+  byte rdExp[4];
+  byte td[34];
+  byte tdExp[2];
+  byte rt[1];
+  byte rtExp[1];
+  byte cm[8];
+  byte cmExp[5];
+  byte cd[4];
+  dword len;
+  dword i;
+  dword crc;
+  dword j;
+  dword b;
+
+  TestCaseTitle("E1", "full download flow");
+  if (EnterSession(0x02) == 0) { TestStepFail("E1", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("E1", "unlock"); return; }
+  er[0] = 0x31; er[1] = 0x01; er[2] = 0xFF; er[3] = 0x00;
+  ee[0] = 0x71; ee[1] = 0x01; ee[2] = 0xFF; ee[3] = 0x00;
+  if (ExpectResp(er, 4, ee, 4) == 0)
+  {
+    TestStepFail("E1", "erase failed");
+    return;
+  }
+  BuildDownloadReq(rd, cAppStart, 0x20);
+  rdExp[0] = 0x74; rdExp[1] = 0x20; rdExp[2] = 0x02; rdExp[3] = 0x00;
+  if (ExpectResp(rd, 11, rdExp, 4) == 0)
+  {
+    TestStepFail("E1", "requestDownload failed");
+    return;
+  }
+  td[0] = 0x36; td[1] = 0x01;
+  for (i = 0; i < 32; i++) { td[2 + i] = i & 0xFF; }
+  tdExp[0] = 0x76; tdExp[1] = 0x01;
+  if (ExpectResp(td, 34, tdExp, 2) == 0) { TestStepFail("E1", "transferData failed"); return; }
+  rt[0] = 0x37;
+  rtExp[0] = 0x77;
+  if (ExpectResp(rt, 1, rtExp, 1) == 0)  { TestStepFail("E1", "transferExit failed"); return; }
+  /* Stream CRC of payload 00..1F (IEEE CRC32) */
+  crc = 0xFFFFFFFF;
+  for (i = 0; i < 32; i++)
+  {
+    b = i & 0xFF;
+    crc = crc ^ b;
+    for (j = 0; j < 8; j++)
+    {
+      if ((crc & 1) != 0) { crc = (crc >> 1) ^ 0xEDB88320; }
+      else                { crc = crc >> 1; }
+    }
+  }
+  crc = crc ^ 0xFFFFFFFF;
+  cm[0] = 0x31; cm[1] = 0x01; cm[2] = 0xFF; cm[3] = 0x02;
+  cm[4] = (crc >> 24) & 0xFF;
+  cm[5] = (crc >> 16) & 0xFF;
+  cm[6] = (crc >> 8) & 0xFF;
+  cm[7] = crc & 0xFF;
+  cmExp[0] = 0x71; cmExp[1] = 0x01; cmExp[2] = 0xFF; cmExp[3] = 0x02; cmExp[4] = 0x00;
+  if (ExpectResp(cm, 8, cmExp, 5) == 0)
+  {
+    TestStepFail("E1", "checkMemory failed");
+    return;
+  }
+  cd[0] = 0x31; cd[1] = 0x01; cd[2] = 0xFF; cd[3] = 0x01;
+  len = UdsRequest(cd, 4, gResp, 2000, cReqId);
+  if ((len == 5) && (gResp[0] == 0x71) && (gResp[1] == 0x01) &&
+      (gResp[2] == 0xFF) && (gResp[3] == 0x01) && (gResp[4] == 0x00))
+  {
+    TestStepPass("E1", "full flow OK");
+  }
+  else
+  {
+    TestStepFail("E1", "checkDependency failed");
+  }
+}
+
+testcase TC_E2()
+{
+  byte req[34];
+  dword i;
+
+  TestCaseTitle("E2", "36 wrong block counter -> WBSC");
+  if (ProgErased() == 0) { TestStepFail("E2", "precondition"); return; }
+  if (StartDownload(cAppStart, 0x20) == 0) { TestStepFail("E2", "requestDownload"); return; }
+  req[0] = 0x36; req[1] = 0x02;
+  for (i = 0; i < 32; i++) { req[2 + i] = i & 0xFF; }
+  if (ExpNeg(req, 34, 0x36, 0x73)) { TestStepPass("E2", "7F 36 73"); }
+  else                             { TestStepFail("E2", "expected WBSC"); }
+}
+
+testcase TC_E3()
+{
+  byte req[42];
+  dword i;
+
+  TestCaseTitle("E3", "36 block larger than download size -> ROOR");
+  if (ProgErased() == 0) { TestStepFail("E3", "precondition"); return; }
+  if (StartDownload(cAppStart, 0x20) == 0) { TestStepFail("E3", "requestDownload"); return; }
+  req[0] = 0x36; req[1] = 0x01;
+  for (i = 0; i < 40; i++) { req[2 + i] = i & 0xFF; }
+  if (ExpNeg(req, 42, 0x36, 0x31)) { TestStepPass("E3", "7F 36 31"); }
+  else                             { TestStepFail("E3", "expected ROOR"); }
+}
+
+testcase TC_E4()
+{
+  byte req[5];
+
+  TestCaseTitle("E4", "36 unaligned block -> ROOR");
+  if (ProgErased() == 0) { TestStepFail("E4", "precondition"); return; }
+  if (StartDownload(cAppStart, 0x20) == 0) { TestStepFail("E4", "requestDownload"); return; }
+  req[0] = 0x36; req[1] = 0x01; req[2] = 0xAA; req[3] = 0xBB; req[4] = 0xCC;
+  if (ExpNeg(req, 5, 0x36, 0x31)) { TestStepPass("E4", "7F 36 31"); }
+  else                            { TestStepFail("E4", "expected ROOR"); }
+}
+
+testcase TC_E5()
+{
+  byte req[11];
+
+  TestCaseTitle("E5", "34 address in boot area -> ROOR");
+  if (ProgErased() == 0) { TestStepFail("E5", "precondition"); return; }
+  BuildDownloadReq(req, 0x80000000, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x31)) { TestStepPass("E5", "7F 34 31"); }
+  else                             { TestStepFail("E5", "expected ROOR"); }
+}
+
+testcase TC_E6()
+{
+  byte req[11];
+
+  TestCaseTitle("E6", "34 unaligned address -> ROOR");
+  if (ProgErased() == 0) { TestStepFail("E6", "precondition"); return; }
+  BuildDownloadReq(req, cAppStart + 1, 0x20);
+  if (ExpNeg(req, 11, 0x34, 0x31)) { TestStepPass("E6", "7F 34 31"); }
+  else                             { TestStepFail("E6", "expected ROOR"); }
+}
+
+testcase TC_E7()
+{
+  byte req[1];
+
+  TestCaseTitle("E7", "37 before download complete -> CNC");
+  if (ProgErased() == 0) { TestStepFail("E7", "precondition"); return; }
+  if (StartDownload(cAppStart, 0x20) == 0) { TestStepFail("E7", "requestDownload"); return; }
+  req[0] = 0x37;
+  if (ExpNeg(req, 1, 0x37, 0x22)) { TestStepPass("E7", "7F 37 22"); }
+  else                            { TestStepFail("E7", "expected CNC"); }
+}
+
+testcase TC_E8()
+{
+  byte req[34];
+  dword i;
+
+  TestCaseTitle("E8", "session change mid-download -> locked");
+  if (ProgErased() == 0) { TestStepFail("E8", "precondition"); return; }
+  if (StartDownload(cAppStart, 0x20) == 0) { TestStepFail("E8", "requestDownload"); return; }
+  if (EnterSession(0x01) == 0) { TestStepFail("E8", "return default"); return; }
+  if (EnterSession(0x02) == 0) { TestStepFail("E8", "re-enter programming"); return; }
+  req[0] = 0x36; req[1] = 0x01;
+  for (i = 0; i < 32; i++) { req[2 + i] = i & 0xFF; }
+  if (ExpNeg(req, 34, 0x36, 0x33)) { TestStepPass("E8", "7F 36 33"); }
+  else                             { TestStepFail("E8", "expected SAD"); }
+}
+
+testcase TC_E9()
+{
+  byte req[5];
+
+  TestCaseTitle("E9", "31 erase wrong length -> IMLOIF");
+  if (EnterSession(0x02) == 0) { TestStepFail("E9", "enter programming"); return; }
+  if (DoUnlock(1) == 0)        { TestStepFail("E9", "unlock"); return; }
+  req[0] = 0x31; req[1] = 0x01; req[2] = 0xFF; req[3] = 0x00; req[4] = 0x00;
+  if (ExpNeg(req, 5, 0x31, 0x13)) { TestStepPass("E9", "7F 31 13"); }
+  else                            { TestStepFail("E9", "expected IMLOIF"); }
+}
+
+testcase TC_E12()
+{
+  byte req[11];
+
+  TestCaseTitle("E12", "34 dataFormatIdentifier != 0x00 -> ROOR");
+  if (ProgErased() == 0) { TestStepFail("E12", "precondition"); return; }
+  BuildDownloadReq(req, cAppStart, 0x20);
+  req[1] = 0x01;
+  if (ExpNeg(req, 11, 0x34, 0x31)) { TestStepPass("E12", "7F 34 31"); }
+  else                             { TestStepFail("E12", "expected ROOR"); }
+}
+
+testcase TC_E13()
+{
+  byte req[7];
+
+  TestCaseTitle("E13", "34 ALFID 0x22 (addr/size 2+2) -> IMLOIF");
+  if (ProgErased() == 0) { TestStepFail("E13", "precondition"); return; }
+  req[0] = 0x34; req[1] = 0x00; req[2] = 0x22;
+  req[3] = 0x80; req[4] = 0x04; req[5] = 0x00; req[6] = 0x20;
+  if (ExpNeg(req, 7, 0x34, 0x13)) { TestStepPass("E13", "7F 34 13"); }
+  else                            { TestStepFail("E13", "expected IMLOIF"); }
+}
+
+testcase TC_E14()
+{
+  byte td[34];
+  byte rt[1];
+  byte chk[4];
+  byte rd[11];
+  byte rdExp[4];
+  dword i;
+
+  TestCaseTitle("E14", "order: 36/37/31 FF02 before 34 after erase");
+  if (ProgErased() == 0) { TestStepFail("E14", "precondition"); return; }
+  td[0] = 0x36; td[1] = 0x01;
+  for (i = 0; i < 32; i++) { td[2 + i] = i & 0xFF; }
+  if (ExpNeg(td, 34, 0x36, 0x24) == 0) { TestStepFail("E14", "36 before 34 expected RSE"); return; }
+  rt[0] = 0x37;
+  if (ExpNeg(rt, 1, 0x37, 0x24) == 0) { TestStepFail("E14", "37 before 34 expected RSE"); return; }
+  chk[0] = 0x31; chk[1] = 0x01; chk[2] = 0xFF; chk[3] = 0x02;
+  if (ExpNeg(chk, 4, 0x31, 0x22) == 0) { TestStepFail("E14", "FF02 before 37 expected CNC"); return; }
+  chk[3] = 0x01;
+  if (ExpNeg(chk, 4, 0x31, 0x22) == 0) { TestStepFail("E14", "FF01 before 37 expected CNC"); return; }
+  BuildDownloadReq(rd, cAppStart, 0x20);
+  rdExp[0] = 0x74; rdExp[1] = 0x20; rdExp[2] = 0x02; rdExp[3] = 0x00;
+  if (ExpectResp(rd, 11, rdExp, 4)) { TestStepPass("E14", "7F 36 24 / 37 24 / 31 22 then 74 still OK"); }
+  else                               { TestStepFail("E14", "34 after rejected 36/37 should still work"); }
+}
+
+testcase TC_E15()
+{
+  byte rd[11];
+  byte er[4];
+  byte chk[4];
+  byte td[34];
+  byte tdExp[2];
+  dword i;
+
+  TestCaseTitle("E15", "order: 34 twice / erase / FF02 during download");
+  if (ProgErased() == 0) { TestStepFail("E15", "precondition"); return; }
+  if (StartDownload(cAppStart, 0x20) == 0) { TestStepFail("E15", "first 34"); return; }
+  BuildDownloadReq(rd, cAppStart, 0x20);
+  if (ExpNeg(rd, 11, 0x34, 0x22) == 0) { TestStepFail("E15", "second 34 expected CNC"); return; }
+  er[0] = 0x31; er[1] = 0x01; er[2] = 0xFF; er[3] = 0x00;
+  if (ExpNeg(er, 4, 0x31, 0x22) == 0) { TestStepFail("E15", "erase during 36 expected CNC"); return; }
+  chk[0] = 0x31; chk[1] = 0x01; chk[2] = 0xFF; chk[3] = 0x02;
+  if (ExpNeg(chk, 4, 0x31, 0x22) == 0) { TestStepFail("E15", "FF02 during 36 expected CNC"); return; }
+  td[0] = 0x36; td[1] = 0x01;
+  for (i = 0; i < 32; i++) { td[2 + i] = i & 0xFF; }
+  tdExp[0] = 0x76; tdExp[1] = 0x01;
+  if (ExpectResp(td, 34, tdExp, 2)) { TestStepPass("E15", "7F 34 22 / 31 22 then 76 01 still OK"); }
+  else                               { TestStepFail("E15", "36 after rejected 34/31 should still work"); }
+}
+
+testcase TC_E16()
+{
+  byte td[34];
+  byte rt[1];
+  byte rd[11];
+  byte ff01[4];
+  byte ff02[4];
+  byte er[4];
+  byte ee[4];
+  byte rdExp[4];
+  dword i;
+
+  TestCaseTitle("E16", "order: after 37 no re-erase; FF01 then FF02");
+  if (ProgErased() == 0) { TestStepFail("E16", "precondition"); return; }
+  if (DoDownload32() == 0) { TestStepFail("E16", "34+36+37"); return; }
+  td[0] = 0x36; td[1] = 0x01;
+  for (i = 0; i < 32; i++) { td[2 + i] = i & 0xFF; }
+  if (ExpNeg(td, 34, 0x36, 0x24) == 0) { TestStepFail("E16", "36 after 37 expected RSE"); return; }
+  rt[0] = 0x37;
+  if (ExpNeg(rt, 1, 0x37, 0x24) == 0) { TestStepFail("E16", "37 twice expected RSE"); return; }
+  BuildDownloadReq(rd, cAppStart, 0x20);
+  if (ExpNeg(rd, 11, 0x34, 0x22) == 0) { TestStepFail("E16", "34 without re-erase expected CNC"); return; }
+  ff01[0] = 0x31; ff01[1] = 0x01; ff01[2] = 0xFF; ff01[3] = 0x01;
+  if ((UdsRequest(ff01, 4, gResp, 2000, cReqId) < 4) || (gResp[0] != 0x71))
+  {
+    TestStepFail("E16", "FF01 after 37 should pass");
+    return;
+  }
+  ff02[0] = 0x31; ff02[1] = 0x01; ff02[2] = 0xFF; ff02[3] = 0x02;
+  if (ExpNeg(ff02, 4, 0x31, 0x22) == 0) { TestStepFail("E16", "FF02 after FF01 expected CNC"); return; }
+  er[0] = 0x31; er[1] = 0x01; er[2] = 0xFF; er[3] = 0x00;
+  ee[0] = 0x71; ee[1] = 0x01; ee[2] = 0xFF; ee[3] = 0x00;
+  if (ExpectResp(er, 4, ee, 4) == 0) { TestStepFail("E16", "re-erase after CHECKED"); return; }
+  BuildDownloadReq(rd, cAppStart, 0x20);
+  rdExp[0] = 0x74; rdExp[1] = 0x20; rdExp[2] = 0x02; rdExp[3] = 0x00;
+  if (ExpectResp(rd, 11, rdExp, 4)) { TestStepPass("E16", "after 37: 36/37/34 NRC; FF01 then FF02 CNC; re-erase OK"); }
+  else                               { TestStepFail("E16", "34 after re-erase failed"); }
+}
+
+testcase TC_E18()
+{
+  byte rd[11];
+  byte rdExp[4];
+  byte dsc[2];
+  byte td[34];
+  byte tdExp[2];
+  dword i;
+
+  TestCaseTitle("E18", "10 03 during download -> CNC; 36 still works");
+  if (ProgErased() == 0) { TestStepFail("E18", "precondition"); return; }
+  BuildDownloadReq(rd, cAppStart, 0x20);
+  rdExp[0] = 0x74; rdExp[1] = 0x20; rdExp[2] = 0x02; rdExp[3] = 0x00;
+  if (ExpectResp(rd, 11, rdExp, 4) == 0) { TestStepFail("E18", "34 failed"); return; }
+  dsc[0] = 0x10; dsc[1] = 0x03;
+  if (ExpNeg(dsc, 2, 0x10, 0x22) == 0) { TestStepFail("E18", "10 03 during 34 expected CNC"); return; }
+  td[0] = 0x36; td[1] = 0x01;
+  for (i = 0; i < 32; i++) { td[2 + i] = i & 0xFF; }
+  tdExp[0] = 0x76; tdExp[1] = 0x01;
+  if (ExpectResp(td, 34, tdExp, 2)) { TestStepPass("E18", "7F 10 22 then 76 01"); }
+  else                               { TestStepFail("E18", "36 after rejected 10 03 should still work"); }
+}
+
+/* ---- F. ECU reset ---- */
+testcase TC_F1()
+{
+  byte er[2];
+  byte erExp[2];
+  byte re[2];
+  byte reExp[6];
+
+  TestCaseTitle("F1", "11 01 hardReset + ECU comes back");
+  er[0] = 0x11; er[1] = 0x01;
+  erExp[0] = 0x51; erExp[1] = 0x01;
+  if (ExpectResp(er, 2, erExp, 2) == 0) { TestStepFail("F1", "no 51 01"); return; }
+  TestWaitForTimeout(3000);
+  re[0] = 0x10; re[1] = 0x01;
+  reExp[0] = 0x50; reExp[1] = 0x01; reExp[2] = 0x00; reExp[3] = 0x05; reExp[4] = 0x01; reExp[5] = 0xF4;
+  if (ExpectResp(re, 2, reExp, 6)) { TestStepPass("F1", "ECU re-initialized"); }
+  else                      { TestStepFail("F1", "no response after reset"); }
+}
+
+testcase TC_F2()
+{
+  byte er[2];
+  byte erExp[2];
+  byte re[2];
+  byte reExp[6];
+
+  TestCaseTitle("F2", "11 03 softReset + ECU comes back");
+  er[0] = 0x11; er[1] = 0x03;
+  erExp[0] = 0x51; erExp[1] = 0x03;
+  if (ExpectResp(er, 2, erExp, 2) == 0) { TestStepFail("F2", "no 51 03"); return; }
+  TestWaitForTimeout(2000);
+  re[0] = 0x10; re[1] = 0x01;
+  reExp[0] = 0x50; reExp[1] = 0x01; reExp[2] = 0x00; reExp[3] = 0x05; reExp[4] = 0x01; reExp[5] = 0xF4;
+  if (ExpectResp(re, 2, reExp, 6)) { TestStepPass("F2", "ECU re-initialized"); }
+  else                      { TestStepFail("F2", "no response after reset"); }
+}
+
+testcase TC_F3()
+{
+  byte req[2];
+
+  TestCaseTitle("F3", "11 02 invalid sub-function -> SFNS");
+  req[0] = 0x11; req[1] = 0x02;
+  if (ExpNeg(req, 2, 0x11, 0x12)) { TestStepPass("F3", "7F 11 12"); }
+  else                            { TestStepFail("F3", "expected SFNS"); }
+}
+
+testcase TC_F4()
+{
+  byte er[2];
+  byte erExp[2];
+  byte re[2];
+  byte reExp[6];
+  byte sa[2];
+
+  TestCaseTitle("F4", "11 01 from extended returns to default");
+  if (EnterSession(0x03) == 0) { TestStepFail("F4", "enter extended"); return; }
+  er[0] = 0x11; er[1] = 0x01;
+  erExp[0] = 0x51; erExp[1] = 0x01;
+  if (ExpectResp(er, 2, erExp, 2) == 0) { TestStepFail("F4", "no 51 01"); return; }
+  TestWaitForTimeout(3000);
+  re[0] = 0x10; re[1] = 0x01;
+  reExp[0] = 0x50; reExp[1] = 0x01; reExp[2] = 0x00; reExp[3] = 0x05; reExp[4] = 0x01; reExp[5] = 0xF4;
+  if (ExpectResp(re, 2, reExp, 6) == 0) { TestStepFail("F4", "no 50 01 after reset"); return; }
+  sa[0] = 0x27; sa[1] = 0x01;
+  if (ExpNeg(sa, 2, 0x27, 0x7F)) { TestStepPass("F4", "back in default (27 -> 7F)"); }
+  else                           { TestStepFail("F4", "expected SNSIAS after reset"); }
+}
+
+/* ---- G. functional addressing ---- */
+testcase TC_G1()
+{
+  byte req[2];
+  dword len;
+
+  TestCaseTitle("G1", "functional 3E 00 via 0x7DF");
+  req[0] = 0x3E; req[1] = 0x00;
+  len = UdsRequest(req, 2, gResp, 2000, cFunctId);
+  if ((len == 2) && (gResp[0] == 0x7E) && (gResp[1] == 0x00)) { TestStepPass("G1", "7E 00"); }
+  else                                                        { TestStepFail("G1", "response mismatch"); }
+}
+
+testcase TC_G2()
+{
+  byte req[3];
+  dword len;
+
+  TestCaseTitle("G2", "functional 22 F180 via 0x7DF");
+  req[0] = 0x22; req[1] = 0xF1; req[2] = 0x80;
+  len = UdsRequest(req, 3, gResp, 2000, cFunctId);
+  if ((len == 8) && (gResp[0] == 0x62) && (gResp[1] == 0xF1) && (gResp[2] == 0x80) &&
+      (gResp[3] == 0x01) && (gResp[4] == 0x42) && (gResp[5] == 0x4F) &&
+      (gResp[6] == 0x4F) && (gResp[7] == 0x54))
+  {
+    TestStepPass("G2", "62 F1 80 01 42 4F 4F 54");
+  }
+  else
+  {
+    TestStepFail("G2", "response mismatch");
+  }
+}
+
+testcase TC_G3()
+{
+  byte req[2];
+  dword len;
+
+  TestCaseTitle("G3", "functional 10 01 via 0x7DF");
+  req[0] = 0x10; req[1] = 0x01;
+  len = UdsRequest(req, 2, gResp, 2000, cFunctId);
+  if ((len == 6) && (gResp[0] == 0x50) && (gResp[1] == 0x01) &&
+      (gResp[2] == 0x00) && (gResp[3] == 0x05) &&
+      (gResp[4] == 0x01) && (gResp[5] == 0xF4))
+  {
+    TestStepPass("G3", "50 01 00 05 01 F4");
+  }
+  else
+  {
+    TestStepFail("G3", "response mismatch");
+  }
+}
+
+/* ---- skip placeholders (TestStep* must run inside testcase) ---- */
+testcase TC_E_Skipped()
+{
+  TestCaseTitle("E-skip", "Flash tests skipped (non-destructive)");
+  TestStepPass("E-skip", "set gRunFlash = 1 in variables block to enable E1..E18");
+}
+
+testcase TC_F_Skipped()
+{
+  TestCaseTitle("F-skip", "Reset tests skipped (non-destructive)");
+  TestStepPass("F-skip", "set gRunReset = 1 to enable F1/F2/F4; F3 always runs");
+}
+
+testcase TC_A17_Skipped()
+{
+  TestCaseTitle("A17-skip", "1000 session-switch stress skipped");
+  TestStepPass("A17-skip", "set gRunStress = 1 in variables block to enable A17");
+}
+
+/* =====================================================================
+ * Main test sequence
+ * ===================================================================== */
+void MainTest()
+{
+  write("Boot_Dcm_CanoeTest: starting");
+
+  /* ---- A. session control ---- */
+  TestGroupBegin("A - Session", "DiagnosticSessionControl");
+  TC_A1(); ToDefault(); TC_A2(); ToDefault(); TC_A3(); ToDefault();
+  TC_A4(); ToDefault(); TC_A5(); ToDefault(); TC_A6(); ToDefault();
+  TC_A7(); ToDefault(); TC_A8(); ToDefault();
+  TC_A9(); ToDefault(); TC_A10(); ToDefault(); TC_A11(); ToDefault();
+  TC_A12(); ToDefault(); TC_A13(); ToDefault(); TC_A14(); ToDefault();
+  TC_A15(); ToDefault(); TC_A16(); ToDefault(); TC_A18(); ToDefault();
+  if (gRunStress)
+  {
+    TC_A17(); ToDefault();
+  }
+  else
+  {
+    TC_A17_Skipped();
+  }
+  TestGroupEnd();
+
+  /* ---- B. security access ---- */
+  TestGroupBegin("B - SecurityAccess", "0x27 seed/key, wrong key, levels");
+  TC_B1(); ToDefault(); TC_B2(); ToDefault(); TC_B3(); ToDefault();
+  TC_B4(); ToDefault(); TC_B5(); ToDefault(); TC_B6(); ToDefault();
+  TC_B7(); ToDefault(); TC_B8(); ToDefault(); TC_B9(); ToDefault();
+  TC_B10(); ToDefault(); TC_B11(); ToDefault(); TC_B12(); ToDefault(); TC_B13(); ToDefault();
+  TestGroupEnd();
+
+  /* ---- C. permission matrix ---- */
+  TestGroupBegin("C - Matrix", "session/security gating + negative codes");
+  TC_C1(); ToDefault(); TC_C2(); ToDefault(); TC_C3(); ToDefault();
+  TC_C4(); ToDefault(); TC_C5(); ToDefault(); TC_C6(); ToDefault();
+  TC_C7(); ToDefault(); TC_C8(); ToDefault(); TC_C9(); ToDefault();
+  TC_C10(); ToDefault(); TC_C11(); ToDefault(); TC_C12(); ToDefault();
+  TC_C13(); ToDefault(); TC_C14(); ToDefault(); TC_C15(); ToDefault();
+  TC_C16(); ToDefault(); TC_C17(); ToDefault(); TC_C18(); ToDefault();
+  TC_C19(); ToDefault(); TC_C20(); ToDefault(); TC_C21(); ToDefault();
+  TC_C22(); ToDefault(); TC_C23(); ToDefault(); TC_C24(); ToDefault();
+  TC_C25(); ToDefault(); TC_C26(); ToDefault(); TC_C27(); ToDefault();
+  TC_C28(); ToDefault(); TC_C29(); ToDefault(); TC_C30(); ToDefault();
+  TC_C31(); ToDefault();
+  TestGroupEnd();
+
+  /* ---- D. timing ---- */
+  TestGroupBegin("D - Timing", "P2 / P2* / S3");
+  TC_D1(); ToDefault(); TC_D2(); ToDefault(); TC_D3(); ToDefault(); TC_D4(); ToDefault();
+  TC_D5(); ToDefault(); TC_D6(); ToDefault(); TC_D7(); ToDefault();
+  TestGroupEnd();
+
+  /* ---- H. CanTp TX serialize ---- */
+  TestGroupBegin("H - CanTp TX", "back-to-back requests, no 20 ms gap");
+  TC_H1(); ToDefault(); TC_H2(); ToDefault(); TC_H3(); ToDefault();
+  TC_H4(); ToDefault(); TC_H5(); ToDefault();
+  TestGroupEnd();
+
+  /* ---- E. flash programming ---- */
+  TestGroupBegin("E - Flash", "programming flow (destructive)");
+  if (gRunFlash)
+  {
+    TC_E1(); ToDefault(); TC_E2(); ToDefault(); TC_E3(); ToDefault();
+    TC_E4(); ToDefault(); TC_E5(); ToDefault(); TC_E6(); ToDefault();
+    TC_E7(); ToDefault(); TC_E8(); ToDefault(); TC_E9(); ToDefault();
+    TC_E12(); ToDefault(); TC_E13(); ToDefault();
+    TC_E14(); ToDefault(); TC_E15(); ToDefault(); TC_E16(); ToDefault();
+    TC_E18(); ToDefault();
+  }
+  else
+  {
+    TC_E_Skipped();
+  }
+  TestGroupEnd();
+
+  /* ---- F. ECU reset ---- */
+  TestGroupBegin("F - Reset", "ECUReset");
+  if (gRunReset)
+  {
+    TC_F1(); ToDefault(); TC_F2(); ToDefault(); TC_F4(); ToDefault();
+  }
+  else
+  {
+    TC_F_Skipped();
+  }
+  TC_F3(); ToDefault();
+  TestGroupEnd();
+
+  /* ---- G. functional addressing ---- */
+  TestGroupBegin("G - Functional", "requests via 0x7DF");
+  TC_G1(); ToDefault(); TC_G2(); ToDefault(); TC_G3(); ToDefault();
+  TestGroupEnd();
+
+  ToDefault();
+  write("Boot_Dcm_CanoeTest: finished");
+}

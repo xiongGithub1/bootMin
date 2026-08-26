@@ -1,0 +1,5 @@
+t=1611791 log open E:\workFiles\TC367\TC367\workspace\autosarTc364_Boot (2)\Test\FlashPanel\logs\FlashLog_00004620_0712604.txt
+t=1613791 UDS-TX len=2 10 02
+t=1613791 TX ID=74C 02 10 02
+t=1813791 UDS-RX timeout
+--- end ---
