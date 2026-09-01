@@ -32,6 +32,9 @@ uint32  Boot_App_ToHw(uint32 cachedOrHw);
 boolean Boot_App_IsImageValid(void);
 boolean Boot_App_IsRequestBoot(void);
 void    Boot_App_ClearRequestBoot(void);
+/* HIS: after APP 10 02 reset, Boot sends 50 02 once COM is up. */
+boolean Boot_App_IsPendingProgPosResp(void);
+boolean Boot_App_TakePendingProgPosResp(void);
 uint32  Boot_App_MixEntropy(void);
 
 /* Call as first step of Boot_Init — before Mcu/CAN/Fls — so jump sees a clean HW state. */

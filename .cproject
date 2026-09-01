@@ -129,7 +129,7 @@
 								<inputType id="com.tasking.ctc.asmInputType.1595109619" name="ASM" superClass="com.tasking.ctc.asmInputType"/>
 							</tool>
 							<tool id="com.tasking.ctc.lk.abs.debug.1208404899" name="Linker" superClass="com.tasking.ctc.lk.abs.debug">
-								<option id="com.tasking.ctc.lk.lslFile.126693106" name="Linker script file:" superClass="com.tasking.ctc.lk.lslFile" value="F:\workFiles\TC367\TC367\workspace\autosarTc364_Boot (2)\Appl\Source\vLinkGen_Template.lsl" valueType="string"/>
+								<option id="com.tasking.ctc.lk.lslFile.126693106" name="Linker script file:" superClass="com.tasking.ctc.lk.lslFile" value="F:\workFiles\TC367\TC367\workspace\boot364\Appl\Source\vLinkGen_Template.lsl" valueType="string"/>
 								<option id="com.tasking.ctc.lk.outputFormat.ihex.280923246" name="Generate Intel Hex format file" superClass="com.tasking.ctc.lk.outputFormat.ihex" value="true" valueType="boolean"/>
 								<option id="com.tasking.ctc.lk.mapFile.mapFile.1524954951" name="Generate map file (.map)" superClass="com.tasking.ctc.lk.mapFile.mapFile" value="true" valueType="boolean"/>
 								<option id="com.tasking.ctc.lk.userProvidedInitCode.2146446515" name="Do not use standard copy table for initialization" superClass="com.tasking.ctc.lk.userProvidedInitCode" value="true" valueType="boolean"/>

@@ -119,6 +119,22 @@ void Boot_Uds_MainFunction(void)
     (void)Boot_Uds_TryTransmit();
   }
 
+  /* HIS JumpToBoot: APP never sends 50 02 (RST2BOOT_HIS + EXECUTE). After COM is
+   * online, emit the positive DSC response and enter Programming. */
+  if ((Boot_App_IsPendingProgPosResp() == TRUE) &&
+      (Cdd_TpTxBusy == 0u) && (Cdd_TpTxRetry == 0u))
+  {
+    (void)Boot_App_TakePendingProgPosResp();
+    Boot_Dcm_ChangeSession(BOOT_UDS_SESSION_PROGRAMMING);
+    Cdd_TpTxBuf[0] = BOOT_POS(BOOT_SID_DSC);
+    Cdd_TpTxBuf[1] = BOOT_SF_DSC_PROGRAMMING;
+    Cdd_TpTxBuf[2] = (uint8)((BOOT_UDS_P2_SERVER_10MS >> 8) & 0xFFu);
+    Cdd_TpTxBuf[3] = (uint8)(BOOT_UDS_P2_SERVER_10MS & 0xFFu);
+    Cdd_TpTxBuf[4] = (uint8)((BOOT_UDS_P2EX_SERVER_10MS >> 8) & 0xFFu);
+    Cdd_TpTxBuf[5] = (uint8)(BOOT_UDS_P2EX_SERVER_10MS & 0xFFu);
+    Boot_Uds_Transmit(6u);
+  }
+
   /* Never dispatch from CanTp RxIndication: PduR_Transmit inside CanTp_MainFunction
    * / ISR is often E_NOT_OK, and TxConfirmation of the previous N-SDU would then
    * wipe the queued next response. */

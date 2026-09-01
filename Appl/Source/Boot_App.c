@@ -10,10 +10,17 @@
 #include "FlsLoader.h"
 #include "CanIf.h"
 #include "CanIf_Cfg.h"
+#include "McalLib.h"
 
 /* SCU CHIPID (TC3xx @ 0xF0036140), STM0 TIM0 — seed mix only, not crypto. */
 #define BOOT_SCU_CHIPID                  (*(volatile uint32 *)0xF0036140u)
 #define BOOT_STM0_TIM0                   (*(volatile uint32 *)0xF0001010u)
+
+/* CPU0_FLASHCON1.MASKUECC — mask PFlash UECC traps while probing APP. */
+#define BOOT_CPU0_FLASHCON1              (*(volatile uint32 *)0xF8801104u)
+/* MASKUECC[17:16]=01b (Infineon/Brs); do not touch PFI0_ECCS (can re-trap). */
+#define BOOT_FLASHCON1_MASKUECC          (0x00010000u)
+#define BOOT_FLASHCON1_MASKUECC_BITS     (0x00030000u)
 
 /* Fixed address inside Variables_Shared (0x70026F80..0x70026FFF); leave low 64 B for BRS. */
 #if defined (BRS_COMP_TASKING)
@@ -28,6 +35,8 @@ typedef char Boot_HsSizeCheck[(sizeof(Boot_HandshakeType) == BOOT_HS_SIZE) ? 1 :
 
 static uint8 Boot_App_FlsInited;
 static uint8 Boot_App_ComStarted;
+/* Set when APP JumpToBoot armed REQUEST_BOOT; Boot must send HIS 50 02. */
+static uint8 Boot_App_PendingProgPosResp;
 
 #if (BOOT_APP_CRC_TIME_MEASURE == 1)
 volatile uint32 Boot_App_CrcMeas_Ticks;
@@ -106,24 +115,22 @@ static const Boot_AppHdrType* Boot_App_Hdr(void)
   return (const Boot_AppHdrType *)BOOT_FLASH_APP_START;
 }
 
-static boolean Boot_App_IsEntryCodeOk(uint32 entryCached)
+/* Disable PFlash UECC trap before probing APP (BrsHwDisableEccErrorReporting equivalent).
+ * Must use CPU EndInit via Mcal — plain Appl_UnlockEndinit RMW can be ignored. */
+static void Boot_App_MaskPfUeecc(void)
 {
-  const volatile uint32* p;
-  uint32 word;
+  uint32 v;
 
-  /* TriCore code is 16-bit aligned. */
-  if ((entryCached & 0x1u) != 0u)
-  {
-    return FALSE;
-  }
-  /* Read uncached after flash write. */
-  p = (const volatile uint32 *)Boot_App_ToHw(entryCached);
-  word = *p;
-  if ((word == 0u) || (word == 0xFFFFFFFFu))
-  {
-    return FALSE;
-  }
-  return TRUE;
+  v = (BOOT_CPU0_FLASHCON1 & ~BOOT_FLASHCON1_MASKUECC_BITS) | BOOT_FLASHCON1_MASKUECC;
+  Mcal_WriteCpuEndInitProtReg((volatile void *)0xF8801104u, v);
+#if defined (BRS_COMP_TASKING)
+  __dsync();
+#endif
+}
+
+static boolean Boot_App_IsPfUeeccMasked(void)
+{
+  return (((BOOT_CPU0_FLASHCON1 & BOOT_FLASHCON1_MASKUECC_BITS) != 0u) ? TRUE : FALSE);
 }
 
 static boolean Boot_App_IsVectorOk(uint32 vec, uint32 align)
@@ -148,7 +155,7 @@ static boolean Boot_App_IsVectorOk(uint32 vec, uint32 align)
 
 boolean Boot_App_IsImageValid(void)
 {
-  const Boot_AppHdrType* hdr = Boot_App_Hdr();
+  const Boot_AppHdrType* hdr;
   uint32 len;
   uint32 crc;
   uint32 stored;
@@ -157,11 +164,23 @@ boolean Boot_App_IsImageValid(void)
   const uint8* flash;
   uint32 restLen;
   uint32 entry;
+  uint32 magic;
 
-  if (hdr->magic != BOOT_APP_HDR_MAGIC)
+  /* Mask UECC first — leftover half-programmed APP will otherwise Trap here. */
+  Boot_App_MaskPfUeecc();
+
+  /* Header-only probe. If MASKUECC did not stick, do NOT scan entry/CRC (safe stay-in-Boot). */
+  hdr = Boot_App_Hdr();
+  magic = hdr->magic;
+  if (magic != BOOT_APP_HDR_MAGIC)
   {
     return FALSE;
   }
+  if (Boot_App_IsPfUeeccMasked() != TRUE)
+  {
+    return FALSE;
+  }
+
   len = hdr->length;
   if ((len < BOOT_APP_HDR_SIZE) || (len > BOOT_FLASH_APP_SIZE))
   {
@@ -181,10 +200,8 @@ boolean Boot_App_IsImageValid(void)
   {
     return FALSE;
   }
-  if (Boot_App_IsEntryCodeOk(entry) != TRUE)
-  {
-    return FALSE;
-  }
+  /* No direct entry-word fetch: that is where UECC Trap hit on corrupt APP.
+   * Integrity is covered by CRC below (MASKUECC already verified). */
 
   /* If either vector field is set, both must be valid (BTV 256 B, BIV 8 KB). */
   if ((hdr->intVec != 0u) || (hdr->trapVec != 0u))
@@ -203,9 +220,8 @@ boolean Boot_App_IsImageValid(void)
     }
   }
 
-  /* CRC(header with crc32=0 || payload) using uncached PFlash.
-   * Pause SystemTimer — long CRC in task context otherwise → ErrorHook. */
-  flash = (const uint8 *)Boot_App_ToHw(BOOT_FLASH_APP_START);
+  /* CRC(header with crc32=0 || payload). Prefer cached view under MASKUECC. */
+  flash = (const uint8 *)BOOT_FLASH_APP_START;
   for (i = 0u; i < BOOT_APP_HDR_SIZE; i++)
   {
     tmp[i] = flash[i];
@@ -214,7 +230,6 @@ boolean Boot_App_IsImageValid(void)
   tmp[13] = 0u;
   tmp[14] = 0u;
   tmp[15] = 0u;
-  /* Before StartOS, STM Os timer is not active — do not unmask SRE early. */
   if ((Boot_App_FlsInited != 0u) || (Boot_App_ComStarted != 0u))
   {
     Boot_OsFlashTimer_Pause();
@@ -231,7 +246,6 @@ boolean Boot_App_IsImageValid(void)
     }
 
     Boot_App_CrcMeas_Ticks = BOOT_STM0_TIM0 - t0;
-    /* fSTM typically 100 MHz → 1 tick = 10 ns → Us = Ticks / 100 */
     Boot_App_CrcMeas_Us = Boot_App_CrcMeas_Ticks / 100u;
     Boot_App_CrcMeas_Len = len;
     Boot_App_CrcMeas_Crc = crc;
@@ -362,6 +376,8 @@ void Boot_App_TryStart(void)
 
   if (Boot_App_IsRequestBoot() == TRUE)
   {
+    /* HIS JumpToBoot: APP reset without 50 02; Boot must send it after COM up. */
+    Boot_App_PendingProgPosResp = 1u;
     Boot_App_ClearRequestBoot();
     return;
   }
@@ -371,6 +387,21 @@ void Boot_App_TryStart(void)
   }
   Boot_App_Jump(hdr->entry);
 #endif
+}
+
+boolean Boot_App_TakePendingProgPosResp(void)
+{
+  if (Boot_App_PendingProgPosResp != 0u)
+  {
+    Boot_App_PendingProgPosResp = 0u;
+    return TRUE;
+  }
+  return FALSE;
+}
+
+boolean Boot_App_IsPendingProgPosResp(void)
+{
+  return (Boot_App_PendingProgPosResp != 0u) ? TRUE : FALSE;
 }
 
 uint32 Boot_App_MixEntropy(void)
