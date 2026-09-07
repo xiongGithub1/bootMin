@@ -22,6 +22,7 @@
 #include "Boot_Uds.h"
 #include "Boot_Uds_Sm.h"
 #include "Boot_App.h"
+#include "Boot_Swap.h"
 #include "Wdg_17_Scu.h"
 static volatile uint8 Boot_RxCnt;
 static volatile uint8 Boot_RxSid;
@@ -101,6 +102,8 @@ void Boot_Init(void)
     /* wait lock */
   }
   (void)Mcu_DistributePllClock();
+  /* MASKUECC before APP probe (empty B after SWAP must not CoreFreeze). */
+  Boot_App_MaskUeeccForProbe();
   /* Jump before any Boot stack/com init when APP image is valid. */
   Boot_App_TryStart();
   Port_Init(&Port_Config);
@@ -115,6 +118,7 @@ void Boot_Init(void)
 
   (void)FlsLoader_Init(NULL_PTR);
   Boot_App_NotifyFlsInit();
+  Boot_Swap_Init();
 #if (BOOT_PFLASH_SMOKE_TEST == 1)
   Boot_PFlashSmoke_Init();
 #endif

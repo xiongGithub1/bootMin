@@ -15,9 +15,9 @@
  *   2. Environment -> System Variables -> Import Boot_FlashPanel.vsysvar
  *   3. Panels -> Add -> Boot_FlashPanel.xvp
  *      If the panel is empty/unbound: Panel Designer, bind controls to
- *      BootFlash::FilePath / Start / Abort / DoReset / Progress / Status /
- *      Busy / BytesSent / BytesTotal / LogEnable / LogPath / LogUseDefault /
- *      LogRecording (see vsysvar).
+ *      BootFlash::FilePath / Start / Abort / DoActivateSwap / SwapMarker /
+ *      DoReset / Progress / Status / Busy / BytesSent / BytesTotal /
+ *      LogEnable / LogPath / LogUseDefault / LogRecording (see vsysvar).
  *   4. Test Setup -> CAPL Test Module -> this file. F7, then Start.
  *      Also assign the Test Module to the same CAN bus/channel as cCanCh.
  *   5. HEX path: edit cHexDefault in this file, or type/bind FilePath on the panel.
@@ -27,7 +27,9 @@
  *      LogUseDefault copies cLogDirDefault. One file per Start Flash session.
  *
  * Sequence: 10 02 -> 27 L1 (~seed) -> 31 01 FF00 -> 34 -> 36.. -> 37
- *           -> 31 FF02 + CRC32 BE -> 31 FF01 -> optional 11 01
+ *           -> 31 FF02 + CRC32 BE -> 31 FF01 -> 31 FF03 ActivateSwap (+ reset)
+ *           DoActivateSwap=0: skip FF03; DoReset=1 sends plain 11 01 instead.
+ *           SwapMarker: 0=toggle, 85=0x55 bank A, 170=0xAA bank B.
  * APP window 0x80020000..0x801FFFFF, 32-byte align, DLC 8.
  * HEX records must be address-sorted (Tasking default). Holes padded 0x00.
  * Host stream CRC (IEEE/AUTOSAR CRC32) must match ECU Boot_LastCrc on FF02.
@@ -1121,7 +1123,16 @@ int ProgramHex(char path[])
 /* =====================================================================
  * UDS flash sequence
  * ===================================================================== */
+int EnterExtend(void)
+{
+  byte req[2];
+  dword len;
 
+  req[0] = 0x10;
+  req[1] = 0x03;
+  len = UdsRequest(req, 2, gResp, 2000, cReqId);
+  return ((len == 6) && (gResp[0] == 0x50) && (gResp[1] == 0x03));
+}
 int EnterProg(void)
 {
   byte req[2];
@@ -1319,7 +1330,48 @@ int StartRid(byte ridHi, byte ridLo)
   req[2] = ridHi;
   req[3] = ridLo;
   len = UdsRequest(req, 4, gResp, 5000, cReqId);
-  return ((len >= 4) && (gResp[0] == 0x71));
+  if ((len >= 4) && (gResp[0] == 0x71) && (gResp[2] == ridHi) && (gResp[3] == ridLo))
+  {
+    return 1;
+  }
+  if ((len >= 3) && (gResp[0] == 0x7F))
+  {
+    write("31 %02X%02X NRC %02X", ridHi, ridLo, gResp[2]);
+  }
+  return 0;
+}
+
+int ActivateSwap(int marker)
+{
+  byte req[5];
+  dword len;
+  dword reqLen;
+
+  req[0] = 0x31;
+  req[1] = 0x01;
+  req[2] = 0xFF;
+  req[3] = 0x03;
+  reqLen = 4;
+  if (marker != 0)
+  {
+    req[4] = marker & 0xFF;
+    reqLen = 5;
+    write("31 FF03 marker %02X", req[4]);
+  }
+  else
+  {
+    write("31 FF03 marker toggle");
+  }
+  len = UdsRequest(req, reqLen, gResp, 5000, cReqId);
+  if ((len >= 4) && (gResp[0] == 0x71) && (gResp[2] == 0xFF) && (gResp[3] == 0x03))
+  {
+    return 1;
+  }
+  if ((len >= 3) && (gResp[0] == 0x7F))
+  {
+    write("31 FF03 NRC %02X", gResp[2]);
+  }
+  return 0;
 }
 
 void ToDefault(void)
@@ -1366,7 +1418,12 @@ void RunFlash(void)
   {
     return;
   }
-
+  SetProgress(2, "10 03 Extend");
+  if (EnterExtend() == 0)
+  {
+    Fail("10 03 failed");
+    return;
+  }
   SetProgress(2, "10 02 programming");
   if (EnterProg() == 0)
   {
@@ -1422,7 +1479,30 @@ void RunFlash(void)
     return;
   }
   SetProgress(98, "31 FF01 CheckDep");
-  StartRid(0xFF, 0x01);
+  if (StartRid(0xFF, 0x01) == 0)
+  {
+    Fail("31 FF01 CheckDep failed");
+    ToDefault();
+    return;
+  }
+
+  if (GetI("DoActivateSwap") != 0)
+  {
+    SetProgress(99, "31 FF03 ActivateSwap");
+    if (ActivateSwap(GetI("SwapMarker")) == 0)
+    {
+      Fail("31 FF03 ActivateSwap failed");
+      ToDefault();
+      return;
+    }
+    SetI("Progress", 100);
+    SetI("BytesSent", gSize);
+    SetS("Status", "Done (FF03 bank switch + reset)");
+    SetI("Busy", 0);
+    write("Flash DONE + FF03 start=%x size=%d", gStart, gSize);
+    LogClose();
+    return;
+  }
 
   SetI("Progress", 100);
   SetI("BytesSent", gSize);
@@ -1444,7 +1524,7 @@ void RunFlash(void)
   }
   else
   {
-    SetS("Status", "Done");
+    SetS("Status", "Done (no FF03 / no reset)");
   }
 
   SetI("Busy", 0);
@@ -1485,7 +1565,7 @@ testcase TC_FlashPanel()
       SetI("Start", 0);
       RunFlash();
     }
-    TestWaitForTimeout(20);
+    TestWaitForTimeout(1);
   }
 }
 

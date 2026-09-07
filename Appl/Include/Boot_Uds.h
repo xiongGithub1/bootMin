@@ -51,6 +51,8 @@ boolean Boot_Uds_IsSecurityUnlocked(void);
 void Boot_Uds_SendNeg(uint8 sid, uint8 nrc);
 void Boot_Uds_Transmit(PduLengthType len);
 void Boot_Uds_MainFunction(void);
+/* After ActivateSwap / 0x11: queue System Reset once TX is done. */
+void Boot_Uds_RequestSoftwareReset(void);
 
 uint8* Boot_Uds_GetRxBuf(void);
 PduLengthType Boot_Uds_GetRxLen(void);

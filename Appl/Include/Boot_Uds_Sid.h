@@ -57,6 +57,7 @@
 #define BOOT_RID_ERASE_MEMORY                (0xFF00u) /* EraseMemory — Start only */
 #define BOOT_RID_CHECK_PROG_DEP              (0xFF01u) /* CheckProgrammingDependencies — Start (+1 byte in Dcm) */
 #define BOOT_RID_CHECK_MEMORY                (0xFF02u) /* CheckMemory — Start + 4 B CRC32 BE */
+#define BOOT_RID_ACTIVATE_SWAP               (0xFF03u) /* ActivateSwap — Start [+1 B marker 0x55/0xAA/0=toggle] */
 
 /* ========== DIDs — Boot Dcm_CfgDidMgrDidLookUpTable ========== */
 #define BOOT_DID_DATA_DIAG                   (0x0101u)

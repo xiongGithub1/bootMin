@@ -1,5 +1,7 @@
 /**********************************************************************************************************************
  * Boot_FlashProg.h — UDS download / erase (0x34/0x36/0x37/0x31) via FlsLoader
+ * With BOOT_SWAP_PROGRAM_INACTIVE: erase/write go to inactive physical bank
+ * (A active → PF1 @ 0xA03xxxxx; B active → PF0 @ 0xA00xxxxx). UDS addresses stay logical.
  *********************************************************************************************************************/
 #ifndef BOOT_FLASHPROG_H
 #define BOOT_FLASHPROG_H

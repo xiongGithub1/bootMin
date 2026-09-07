@@ -55,6 +55,7 @@ boolean Boot_Sm_AllowDownload(void);
 boolean Boot_Sm_AllowTransferData(void);
 boolean Boot_Sm_AllowTransferExit(void);
 boolean Boot_Sm_AllowCheckDep(void);
+boolean Boot_Sm_AllowActivateSwap(void);
 
 boolean Boot_Sm_IsSecurityUnlocked(void);
 

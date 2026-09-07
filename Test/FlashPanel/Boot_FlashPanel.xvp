@@ -47,18 +47,40 @@
       <Property Name="SymbolConfiguration">5;16;BootFlash;;;Abort;1;;;-1;;;</Property>
       <Property Name="TabIndex">4</Property>
     </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.CheckBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="ChkActivateSwap" Children="Controls" ControlName="DoActivateSwap">
+      <Property Name="Name">ChkActivateSwap</Property>
+      <Property Name="Size">220, 24</Property>
+      <Property Name="Location">268, 88</Property>
+      <Property Name="Text">31 FF03 ActivateSwap</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;DoActivateSwap;1;;;-1;;;</Property>
+      <Property Name="TabIndex">5</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblSwapMarker" Children="Controls" ControlName="LblSwapMarker">
+      <Property Name="Name">LblSwapMarker</Property>
+      <Property Name="Size">88, 22</Property>
+      <Property Name="Location">500, 90</Property>
+      <Property Name="Text">SwapMarker</Property>
+    </Object>
+    <Object Type="Vector.CANalyzer.Panels.Design.LCDControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LcdSwapMarker" ControlName="SwapMarker">
+      <Property Name="Name">LcdSwapMarker</Property>
+      <Property Name="Size">60, 29</Property>
+      <Property Name="Location">592, 86</Property>
+      <Property Name="NumberIntDigits">3</Property>
+      <Property Name="DecimalPlaces">0</Property>
+      <Property Name="SymbolConfiguration">5;16;BootFlash;;;SwapMarker;1;;;-1;;;</Property>
+    </Object>
     <Object Type="Vector.CANalyzer.Panels.Design.CheckBoxControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="ChkReset" Children="Controls" ControlName="DoReset">
       <Property Name="Name">ChkReset</Property>
       <Property Name="Size">200, 24</Property>
-      <Property Name="Location">268, 94</Property>
-      <Property Name="Text">11 01 after flash</Property>
+      <Property Name="Location">268, 114</Property>
+      <Property Name="Text">11 01 only (no FF03)</Property>
       <Property Name="SymbolConfiguration">5;16;BootFlash;;;DoReset;1;;;-1;;;</Property>
-      <Property Name="TabIndex">5</Property>
+      <Property Name="TabIndex">6</Property>
     </Object>
     <Object Type="Vector.CANalyzer.Panels.Design.LEDControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LedBusy" ControlName="Busy">
       <Property Name="Name">LedBusy</Property>
       <Property Name="Size">28, 28</Property>
-      <Property Name="Location">500, 90</Property>
+      <Property Name="Location">668, 88</Property>
       <Property Name="UsedLEDColorOff">Gray</Property>
       <Property Name="SymbolConfiguration">5;16;BootFlash;;;Busy;1;;;-1;;;</Property>
       <Property Name="TabIndex">6</Property>
@@ -66,7 +88,7 @@
     <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblBusy" Children="Controls" ControlName="LblBusy">
       <Property Name="Name">LblBusy</Property>
       <Property Name="Size">80, 22</Property>
-      <Property Name="Location">532, 94</Property>
+      <Property Name="Location">700, 92</Property>
       <Property Name="Text">Busy</Property>
     </Object>
     <Object Type="Vector.CANalyzer.Panels.Design.StaticTextControl, Vector.CANalyzer.Panels.CommonControls, Version=12.0.75.0, Culture=neutral, PublicKeyToken=null" Name="LblProg" Children="Controls" ControlName="LblProg">
@@ -210,7 +232,7 @@
       <Property Name="Name">Help2</Property>
       <Property Name="Size">720, 40</Property>
       <Property Name="Location">16, 378</Property>
-      <Property Name="Text">APP 0x80020000-0x801FFFFF | Record logs TX/RX CAN + UDS. Create log folder if open fails.</Property>
+      <Property Name="Text">SOTA: FF02-FF01-FF03 (toggle SwapMarker=0). APP 0x80020000-0x801FFFFF | Record logs TX/RX CAN + UDS.</Property>
     </Object>
     <Property Name="Name">Panel</Property>
     <Property Name="Size">800, 440</Property>

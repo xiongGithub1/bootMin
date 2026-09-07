@@ -363,6 +363,12 @@ void Boot_Uds_HandleEcuReset(void)
   Boot_Uds_ResetPending = 1u;
 }
 
+void Boot_Uds_RequestSoftwareReset(void)
+{
+  Boot_Uds_ResetHoldMs = BOOT_UDS_RESET_HOLD_MS;
+  Boot_Uds_ResetPending = 1u;
+}
+
 void Boot_Uds_HandleTesterPresent(void)
 {
   uint8 sub;

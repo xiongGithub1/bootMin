@@ -3,6 +3,7 @@
  * Add this file and Crc.c to the Tasking project if they are not compiled.
  *********************************************************************************************************************/
 #include "Boot_App.h"
+#include "Boot_Swap.h"
 #include "Boot_OsFlashTimer.h"
 #include "Crc.h"
 #include "BrsHw.h"
@@ -11,6 +12,10 @@
 #include "CanIf.h"
 #include "CanIf_Cfg.h"
 #include "McalLib.h"
+
+/* Linked in BrsHw.c (CPU EndInit). Prefer these over BrsHwUnlockInitInline (ltc E106). */
+void Appl_UnlockEndinit(void);
+void Appl_LockEndinit(void);
 
 /* SCU CHIPID (TC3xx @ 0xF0036140), STM0 TIM0 — seed mix only, not crypto. */
 #define BOOT_SCU_CHIPID                  (*(volatile uint32 *)0xF0036140u)
@@ -21,6 +26,9 @@
 /* MASKUECC[17:16]=01b (Infineon/Brs); do not touch PFI0_ECCS (can re-trap). */
 #define BOOT_FLASHCON1_MASKUECC          (0x00010000u)
 #define BOOT_FLASHCON1_MASKUECC_BITS     (0x00030000u)
+/* DMU_HF_ECCC — TRAPDIS via CPU EndInit (Vector BrsHw path; NOT Safety EndInit). */
+#define BOOT_DMU_HF_ECCC                 (*(volatile uint32 *)0xF8040048u)
+#define BOOT_DMU_ECCC_TRAPDIS            (0xC0000000u)
 
 /* Fixed address inside Variables_Shared (0x70026F80..0x70026FFF); leave low 64 B for BRS. */
 #if defined (BRS_COMP_TASKING)
@@ -115,17 +123,32 @@ static const Boot_AppHdrType* Boot_App_Hdr(void)
   return (const Boot_AppHdrType *)BOOT_FLASH_APP_START;
 }
 
-/* Disable PFlash UECC trap before probing APP (BrsHwDisableEccErrorReporting equivalent).
- * Must use CPU EndInit via Mcal — plain Appl_UnlockEndinit RMW can be ignored. */
+/* Disable PFlash UECC trap before probing APP.
+ * Match Vector BrsHwDisableEccErrorReporting intent:
+ * FLASHCON1.MASKUECC (Mcal CPU-EndInit) + DMU_HF_ECCC.TRAPDIS (Appl CPU-EndInit).
+ * Do not call BrsHwUnlockInitInline from this TU — Tasking may emit an external
+ * ref (ltc E106). Appl_UnlockEndinit is the linked equivalent in BrsHw.c.
+ * Do NOT use Mcal Safety EndInit for DMU (traps in Boot_Init). */
 static void Boot_App_MaskPfUeecc(void)
 {
   uint32 v;
 
   v = (BOOT_CPU0_FLASHCON1 & ~BOOT_FLASHCON1_MASKUECC_BITS) | BOOT_FLASHCON1_MASKUECC;
   Mcal_WriteCpuEndInitProtReg((volatile void *)0xF8801104u, v);
+
+  Appl_UnlockEndinit();
+  BOOT_CPU0_FLASHCON1 = BOOT_FLASHCON1_MASKUECC;
+  BOOT_DMU_HF_ECCC = BOOT_DMU_ECCC_TRAPDIS;
+  Appl_LockEndinit();
 #if defined (BRS_COMP_TASKING)
   __dsync();
+  __isync();
 #endif
+}
+
+void Boot_App_MaskUeeccForProbe(void)
+{
+  Boot_App_MaskPfUeecc();
 }
 
 static boolean Boot_App_IsPfUeeccMasked(void)
@@ -166,17 +189,19 @@ boolean Boot_App_IsImageValid(void)
   uint32 entry;
   uint32 magic;
 
-  /* Mask UECC first — leftover half-programmed APP will otherwise Trap here. */
+  /* Mask UECC before ANY APP flash read — empty/corrupt APP (esp. after SWAP to B)
+   * otherwise traps into Os_Hal_UnhandledException → Det_EndlessLoop / CoreFreeze. */
   Boot_App_MaskPfUeecc();
-
-  /* Header-only probe. If MASKUECC did not stick, do NOT scan entry/CRC (safe stay-in-Boot). */
-  hdr = Boot_App_Hdr();
-  magic = hdr->magic;
-  if (magic != BOOT_APP_HDR_MAGIC)
+  if (Boot_App_IsPfUeeccMasked() != TRUE)
   {
+    /* EndInit write did not stick: do not touch APP window. */
     return FALSE;
   }
-  if (Boot_App_IsPfUeeccMasked() != TRUE)
+
+  hdr = Boot_App_Hdr();
+  magic = hdr->magic;
+  /* Erased PFlash is 0x00 on TC3xx; also treat 0xFFFFFFFF as empty. */
+  if ((magic == 0u) || (magic == 0xFFFFFFFFu) || (magic != BOOT_APP_HDR_MAGIC))
   {
     return FALSE;
   }
@@ -372,7 +397,9 @@ static void Boot_App_Jump(uint32 entry)
 void Boot_App_TryStart(void)
 {
 #if (BOOT_APP_JUMP_ENABLE == 1)
-  const Boot_AppHdrType* hdr = Boot_App_Hdr();
+  const Boot_AppHdrType* hdr;
+
+  Boot_App_MaskPfUeecc();
 
   if (Boot_App_IsRequestBoot() == TRUE)
   {
@@ -381,11 +408,26 @@ void Boot_App_TryStart(void)
     Boot_App_ClearRequestBoot();
     return;
   }
+  /* Illegal ADDRCFG: stay in Boot (do not probe/jump). */
+  if (Boot_Swap_IsMappingLegal() != TRUE)
+  {
+    return;
+  }
+#if (BOOT_APP_AUTO_JUMP == 0)
+  /* Boot-only lab (no APP on A/B): never read APP PFlash — avoids UECC on dirty B. */
+  return;
+#else
+  if (Boot_App_IsPfUeeccMasked() != TRUE)
+  {
+    return;
+  }
   if (Boot_App_IsImageValid() != TRUE)
   {
     return;
   }
+  hdr = Boot_App_Hdr();
   Boot_App_Jump(hdr->entry);
+#endif
 #endif
 }
 

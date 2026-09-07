@@ -10,7 +10,22 @@
 #include "Boot_Uds.h"
 #include "Boot_Uds_Sm.h"
 #include "Boot_App.h"
+#include "Boot_Swap.h"
 #include "Std_Types.h"
+
+/* Logical APP/Boot window (UDS) → FlsLoader HW address (inactive bank when SWAP on). */
+static uint32 Boot_FlashProg_ToProgHw(uint32 logicalCachedOrHw)
+{
+#if (BOOT_SWAP_PROGRAM_INACTIVE == 1)
+  uint32 cfg = Boot_Swap_GetAddrCfg();
+
+  if ((cfg == BOOT_SWAP_ADDRCFG_A) || (cfg == BOOT_SWAP_ADDRCFG_B))
+  {
+    return Boot_Swap_LogicalToInactiveHw(logicalCachedOrHw);
+  }
+#endif
+  return Boot_App_ToHw(logicalCachedOrHw);
+}
 
 #define BOOT_POS_RD                  BOOT_POS(BOOT_SID_RD)
 #define BOOT_POS_TD                  BOOT_POS(BOOT_SID_TD)
@@ -130,7 +145,7 @@ void Boot_FlashProg_HandleRequestDownload(void)
   }
 
   Boot_DlAddr = addr;
-  Boot_DlHwAddr = Boot_App_ToHw(addr);
+  Boot_DlHwAddr = Boot_FlashProg_ToProgHw(addr);
   Boot_DlSize = size;
   Boot_DlReceived = 0u;
   Boot_DlNextBsc = 1u;
@@ -289,7 +304,7 @@ static void Boot_FlashProg_EraseApp(uint32 start, uint32 length)
     return;
   }
 
-  hwStart = Boot_App_ToHw(start);
+  hwStart = Boot_FlashProg_ToProgHw(start);
   sectors = length / BOOT_FLASH_SECTOR_SIZE;
 
 #if (BOOT_PFLASH_SMOKE_TEST == 1)
@@ -443,6 +458,46 @@ void Boot_FlashProg_HandleRoutineControl(void)
       tx[3] = (uint8)(rid & 0xFFu);
       tx[4] = 0x00u; /* routineStatusRecord: OK */
       Boot_Uds_Transmit(5u);
+      return;
+    }
+
+    if (rid == BOOT_RID_ACTIVATE_SWAP)
+    {
+      uint8 marker = BOOT_SWAP_MARKER_TOGGLE;
+      Std_ReturnType sr;
+
+      /* 31 01 FF 03 [marker] — marker optional: 0/omit=toggle, 0x55=A, 0xAA=B */
+      if ((len != 4u) && (len != 5u))
+      {
+        Boot_Uds_SendNeg(BOOT_SID_RC, BOOT_UDS_NRC_IMLOIF);
+        return;
+      }
+      if (Boot_Sm_AllowActivateSwap() != TRUE)
+      {
+        Boot_Uds_SendNeg(BOOT_SID_RC, BOOT_UDS_NRC_CNC);
+        return;
+      }
+      if (len == 5u)
+      {
+        marker = rx[4];
+      }
+      sr = Boot_Swap_Activate(marker);
+      if (sr != E_OK)
+      {
+        Boot_Uds_SendNeg(BOOT_SID_RC, BOOT_UDS_NRC_GPF);
+        return;
+      }
+      if ((sub & BOOT_UDS_SUPPRESS_POS_RSP) == 0u)
+      {
+        tx[0] = BOOT_POS_RC;
+        tx[1] = BOOT_SF_RC_START;
+        tx[2] = (uint8)((rid >> 8) & 0xFFu);
+        tx[3] = (uint8)(rid & 0xFFu);
+        tx[4] = 0x00u;
+        Boot_Uds_Transmit(5u);
+      }
+      /* System Reset so SSW installs new UCB_SWAP mapping. */
+      Boot_Uds_RequestSoftwareReset();
       return;
     }
 

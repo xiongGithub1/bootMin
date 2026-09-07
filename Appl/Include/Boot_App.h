@@ -37,7 +37,10 @@ boolean Boot_App_IsPendingProgPosResp(void);
 boolean Boot_App_TakePendingProgPosResp(void);
 uint32  Boot_App_MixEntropy(void);
 
-/* Call as first step of Boot_Init — before Mcu/CAN/Fls — so jump sees a clean HW state. */
+/* Mask PFlash UECC traps before any APP-window probe (empty/corrupt after SWAP). */
+void    Boot_App_MaskUeeccForProbe(void);
+
+/* After Mcu clock ready; jump APP if image valid, else stay in Boot. */
 void    Boot_App_TryStart(void);
 
 /* Arm deinit path if TryStart is ever used after stack/com init (or late re-entry). */

@@ -12,7 +12,7 @@
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-				<configuration artifactExtension="elf" artifactName="autosar_tc364_Boot" buildArtefactType="com.tasking.ctc.buildArtefactType.elf" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=com.tasking.ctc.buildArtefactType.elf" cleanCommand="&quot;${PRODDIR}/bin/rm&quot; -rf" description="" id="com.tasking.config.ctc.abs.debug.456483848" name="Debug" parent="com.tasking.config.ctc.abs.debug">
+				<configuration artifactExtension="elf" artifactName="${ProjName}" buildArtefactType="com.tasking.ctc.buildArtefactType.elf" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=com.tasking.ctc.buildArtefactType.elf" cleanCommand="&quot;${PRODDIR}/bin/rm&quot; -rf" description="" id="com.tasking.config.ctc.abs.debug.456483848" name="Debug" parent="com.tasking.config.ctc.abs.debug">
 					<folderInfo id="com.tasking.config.ctc.abs.debug.456483848." name="/" resourcePath="">
 						<toolChain id="com.tasking.ctc.abs.debug.1797735273" name="TASKING VX-toolset for TriCore" superClass="com.tasking.ctc.abs.debug">
 							<option id="com.tasking.ctc.pluginVersion.1995294142" name="Plugin version" superClass="com.tasking.ctc.pluginVersion" value="1.232.0.0" valueType="string"/>

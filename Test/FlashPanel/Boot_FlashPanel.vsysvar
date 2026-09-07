@@ -14,11 +14,23 @@
         <max val="1"/>
         <value startvalue="0"/>
       </variable>
-      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="DoReset" comment="1 = send 11 01 after download" bitcount="32" isSigned="true" encoding="65001" type="int">
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="DoActivateSwap" comment="1 = 31 FF03 ActivateSwap after FF01 (SOTA bank switch + ECU reset)" bitcount="32" isSigned="true" encoding="65001" type="int">
         <valuetable/>
         <min val="0"/>
         <max val="1"/>
         <value startvalue="1"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="SwapMarker" comment="FF03 marker: 0=toggle, 85=0x55 bank A, 170=0xAA bank B" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="255"/>
+        <value startvalue="0"/>
+      </variable>
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="DoReset" comment="1 = send 11 01 when DoActivateSwap=0 (no bank switch)" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable/>
+        <min val="0"/>
+        <max val="1"/>
+        <value startvalue="0"/>
       </variable>
       <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="Busy" comment="1 while flashing" bitcount="32" isSigned="true" encoding="65001" type="int">
         <valuetable/>

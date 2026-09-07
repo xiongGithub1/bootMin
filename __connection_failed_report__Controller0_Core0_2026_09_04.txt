@@ -1,0 +1,797 @@
+----------------------------------------------------------
+
+  Connection Failed Report from
+  Basic UDE Target Interface, Version: 1.18.6
+  created: 09/04/26, 14:59:40
+
+----------------------------------------------------------
+
+Windows version:
+  Win8 ()
+  Admin: yes
+
+UDE version:
+  Release:  5.02.00
+  Build:    16275
+  Path:     F:\Program Files (x86)\pls\UDE 5.2
+
+Target configuration file:
+  F:\workFiles\ude5_0Files\TriBoard_TC36xA_das.cfg
+
+Error messages:
+  Tc2CoreTargIntf: Can't connect target !
+  Tc2CoreTargIntf: Can't determine the default communication device !
+Current selection is ambiguous !
+
+
+----------------------------------------------------------
+
+  Connection Failed Report from
+  Basic UDE Target Interface, Version: 1.18.6
+  created: 09/04/26, 14:59:49
+
+----------------------------------------------------------
+
+Windows version:
+  Win8 ()
+  Admin: yes
+
+UDE version:
+  Release:  5.02.00
+  Build:    16275
+  Path:     F:\Program Files (x86)\pls\UDE 5.2
+
+Target configuration file:
+  F:\workFiles\ude5_0Files\TriBoard_TC36xA_das.cfg
+
+Error messages:
+  Tc2CoreTargIntf: Can't connect target !
+  Tc2CoreTargIntf: Can't determine the default communication device !
+Current selection is ambiguous !
+
+
+----------------------------------------------------------
+
+  Connection Failed Report from
+  Basic UDE Target Interface, Version: 1.17.3
+  created: 09/04/26, 15:04:57
+
+----------------------------------------------------------
+
+Windows version:
+  Win8 ()
+  Admin: yes
+
+UDE version:
+  Release:  5.00.05
+  Build:    8214
+  Path:     C:\Program Files (x86)\pls\UDE Starterkit 5.0
+
+Target configuration file:
+  F:\workFiles\ude5_0Files\TriBoard_TC36xA_das.cfg
+
+Error messages:
+  Tc2CoreTargIntf: Can't connect target !
+  Tc2CoreTargIntf: Can't connect JTAG target
+
+Settings:
+  PortType:  DAS
+  CommDevSel:  
+  TargetPort:  Default
+  TargetPortId:  553582592
+  DasIsDefault:  n
+  MaxJtagClk:  5000
+  CheckJtagId:  y
+  ScanJTAG:  n
+  Ocds1ViaPod:  n
+  EtksArbiterMode:  None
+  EtksWaitAfterArbitrationTime:  0
+  RefreshJtag:  n
+  RefreshHarr:  n
+  ReenableOcds:  y
+  ReduceJtagClock:  n
+  UseDap:  y
+  DapMode:  2PIN
+  JtagMuxPort:  -1
+  UseNewJtagEngine:  y
+  ConnOption:  Default
+  SetDebugEnableAb1DisablePin:  n
+  ResetWaitTime:  500
+  ResetMode:  Default
+  OpenDrainReset:  n
+  DiswdtOnReset:  n
+  SetPllOnReset:  0x00000000
+  SetPllOnReset2:  0x00000000
+  ExecInitCmds:  y
+  InitScript Script:
+    ; Disable FLASH traps
+    set CPU0_FLASHCON1 0x10000
+    set CPU1_FLASHCON1 0x10000
+    set DMU_HF_ECCC 0xC0000000
+    
+    ; Init TLE35584 C-Step on connect
+    SET 0xF0036034  0x11100002
+    SET 0xF0001E00  0x8
+    SET 0xF0001E10  0x20003C04
+    SET 0xF0001E04  0x1
+    SET 0xF0001E14  0x14000000
+    SET 0xF0001E24  0x501
+    SET 0xF0001E48  0x00020000
+    SET 0xF003AF10  0x98000000
+    SET 0xF003AF14  0x10980000
+    SET 0xF003AF40  0x30330333
+    SET 0xF003AE10  0x10980000
+    SET 0xF003AE40  0x33333033
+    WAIT 5
+    SET 0xF0001E54  0xFFF
+    SET 0xF0001E60  0x17A10001
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E10  0x21003C04
+    SET 0xF0001E64 0x8756
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x87DE
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x86AD
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8625
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8D27
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8A01
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x87BE
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8668
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x877D
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8795
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    WAIT 5
+  ExecOnConnectCmds:  n
+  OnConnectScript Script:
+    
+  ExecOnExtRstCmds:  n
+  FailOnResetMalfunction:  n
+  ResetPulseLen:  10
+  AddResetDelay:  0
+  UseTrstOnReset:  n
+  ExecEmemInitOnReset:  0x00000000
+  SimHsmBootEnabled:  n
+  UnlockInterface:  n
+  BootPasswd0:  0x00000000
+  BootPasswd1:  0x00000000
+  BootPasswd2:  0x00000000
+  BootPasswd3:  0x00000000
+  BootPasswd4:  0x00000000
+  BootPasswd5:  0x00000000
+  BootPasswd6:  0x00000000
+  BootPasswd7:  0x00000000
+  PasswordFile:  
+  UnlockInterfaceDelay:  -1
+  HandleBmiHeader:  n
+  SetAutOkOnConnect:  n
+  DontUseWdtSusp:  n
+  InitCore0RamOnConnect:  n
+  MaxTry:  1
+  ForceEdMode:  -1
+  UseDflashAccessFilter:  y
+  DetectResetWhileHalted:  n
+  UseTranslateAddr:  y
+  DownloadToAllRams:  y
+  HaltAfterReset:  y
+  TargetAppHandshakeMode:  None
+  TargetAppHandshakeTimeout:  100
+  TargetAppHandshakeParameter0:  0x00000000
+  TargetAppHandshakeParameter1:  0x00000000
+  TargetAppHandshakeParameter2:  0x00000000
+  TargetAppHandshakeParameter3:  0x00000000
+  ConvertSuspendSignalToPulse:  n
+  SimioAddr:  g_JtagSimioAccess
+  UseStmForPtm:  1
+  ExecOnStartCmds:  n
+  OnStartScript Script:
+    
+  ExecOnHaltCmds:  n
+  OnHaltScript Script:
+    
+  ExecOnHaltCmdsWhileHaltedPeriod:  0
+  UseTriggerToBreak:  y
+  UseTL2OnHalt:  y
+  UseOstateStable:  y
+  AllowJtagResetWhileRunning:  y
+  MaxAccRetry:  1
+  AccRetryDelay:  100
+  DefOcdsReserved:  
+  UseRestartWhileRunningHandling:  n
+  DebugResetOnDisconnect:  n
+  IgnoreEmemAccessErrors:  n
+  RemapEmemAccess:  n
+  EnableAutomaticHsmStart:  n
+  EnableAutomaticHsmRunControl:  n
+  ReadPmcsrWhileRunning:  n
+  MultiChipDbgMode:  0
+  MultiChipDbgInp:  1
+  MultiChipDbgOut:  6
+  MultiChipDbgCtl:  7
+  IvIcacheOnHalt:  n
+  IvPlbOnHalt:  n
+  SuspendSlaveCores:  n
+  FilterMemAcc:  y
+  DasDllPath:  das_api.dll
+  DasHost:  
+  DasTryStartSrv:  y
+  DasSrvPath:  servers\udas\udas.exe
+  DasStopSrv:  y
+  DasResetHelperBreakAddr:  main
+  DasResetMode:  2
+  DasRemoveLogFile:  n
+  DasForwardSerNum:  n
+  DasSrvSel:  -1
+  DasPortType:  0
+  DasPortSel:  0
+  DasCmdTimeout:  1000
+  DasWaitAfterConnect:  0
+  DasAllowMiniWiggler:  n
+
+JTAG target infos:
+  JTAG-ID:           0x00000000
+  UsedJtagClk:       0 MHz
+  ExtVoltage:        0.0 V
+  IntVoltageUsed:    n
+  CHIPID:            0x00000000
+  STSTAT:            0x00000000
+
+DAS related information:
+  DAS DLL Version:        
+  Server started by UDE:  
+  Server name:            UDAS
+  Server manufacturer:    Infineon
+  Server version:         V3.12
+  DAS-API version:        V4.2
+  Server lib version:     V3.0
+  last DAS error:         4
+  last DAS function:      connect_to_device
+
+
+----------------------------------------------------------
+
+  Connection Failed Report from
+  Basic UDE Target Interface, Version: 1.18.6
+  created: 09/04/26, 15:19:50
+
+----------------------------------------------------------
+
+Windows version:
+  Win8 ()
+  Admin: yes
+
+UDE version:
+  Release:  5.02.00
+  Build:    16275
+  Path:     F:\Program Files (x86)\pls\UDE 5.2
+
+Target configuration file:
+  F:\workFiles\ude5_0Files\TriBoard_TC36xA_das.cfg
+
+Error messages:
+  Tc2CoreTargIntf: Can't connect target !
+  Tc2CoreTargIntf: Can't connect JTAG target
+  Tc2CoreTargIntf: No JTAG client found !
+Please check:
+- target power supply
+- JTAG cable connection
+- target configuration
+  UDEDebugServer: UAD2proV2 - serial no. 617436 was suprised removed . To correct the situation, connect the communication device again and try to establish target communication.
+
+Settings:
+  PortType:  Default
+  CommDevSel:  
+  TargetPort:  Default
+  TargetPortId:  0
+  DasIsDefault:  n
+  MaxJtagClk:  5000
+  CheckJtagId:  y
+  ScanJTAG:  n
+  Ocds1ViaPod:  n
+  EtksArbiterMode:  None
+  EtksWaitAfterArbitrationTime:  0
+  RefreshJtag:  n
+  RefreshHarr:  n
+  ReenableOcds:  y
+  ReduceJtagClock:  n
+  UseDap:  y
+  DapMode:  2PIN
+  JtagMuxPort:  -1
+  UseNewJtagEngine:  y
+  ConnOption:  KeepRunning
+  SetDebugEnableAb1DisablePin:  n
+  ResetWaitTime:  500
+  ResetMode:  Default
+  OpenDrainReset:  n
+  DiswdtOnReset:  n
+  SetPllOnReset:  0x00000000
+  SetPllOnReset2:  0x00000000
+  ExecInitCmds:  y
+  InitScript Script:
+    ; Disable FLASH traps
+    set CPU0_FLASHCON1 0x10000
+    set CPU1_FLASHCON1 0x10000
+    set DMU_HF_ECCC 0xC0000000
+    
+    ; Init TLE35584 C-Step on connect
+    SET 0xF0036034  0x11100002
+    SET 0xF0001E00  0x8
+    SET 0xF0001E10  0x20003C04
+    SET 0xF0001E04  0x1
+    SET 0xF0001E14  0x14000000
+    SET 0xF0001E24  0x501
+    SET 0xF0001E48  0x00020000
+    SET 0xF003AF10  0x98000000
+    SET 0xF003AF14  0x10980000
+    SET 0xF003AF40  0x30330333
+    SET 0xF003AE10  0x10980000
+    SET 0xF003AE40  0x33333033
+    WAIT 5
+    SET 0xF0001E54  0xFFF
+    SET 0xF0001E60  0x17A10001
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E10  0x21003C04
+    SET 0xF0001E64 0x8756
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x87DE
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x86AD
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8625
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8D27
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8A01
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x87BE
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8668
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x877D
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8795
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    WAIT 5
+  ExecOnConnectCmds:  n
+  OnConnectScript Script:
+    
+  ExecOnExtRstCmds:  n
+  FailOnResetMalfunction:  n
+  ResetPulseLen:  10
+  AddResetDelay:  0
+  UseTrstOnReset:  n
+  ExecEmemInitOnReset:  0x00000000
+  SimHsmBootEnabled:  n
+  UnlockInterface:  n
+  BootPasswd0:  0x00000000
+  BootPasswd1:  0x00000000
+  BootPasswd2:  0x00000000
+  BootPasswd3:  0x00000000
+  BootPasswd4:  0x00000000
+  BootPasswd5:  0x00000000
+  BootPasswd6:  0x00000000
+  BootPasswd7:  0x00000000
+  PasswordFile:  
+  UnlockInterfaceDelay:  -1
+  HandleBmiHeader:  n
+  SetAutOkOnConnect:  n
+  DontUseWdtSusp:  n
+  InitCore0RamOnConnect:  n
+  MaxTry:  1
+  ForceEdMode:  -1
+  UseDflashAccessFilter:  y
+  DetectResetWhileHalted:  y
+  UseTranslateAddr:  y
+  DownloadToAllRams:  y
+  HaltAfterReset:  y
+  TargetAppHandshakeMode:  None
+  TargetAppHandshakeTimeout:  100
+  TargetAppHandshakeParameter0:  0x00000000
+  TargetAppHandshakeParameter1:  0x00000000
+  TargetAppHandshakeParameter2:  0x00000000
+  TargetAppHandshakeParameter3:  0x00000000
+  ConvertSuspendSignalToPulse:  n
+  SimioAddr:  g_JtagSimioAccess
+  UseStmForPtm:  1
+  ExecOnStartCmds:  n
+  OnStartScript Script:
+    
+  ExecOnHaltCmds:  n
+  OnHaltScript Script:
+    
+  ExecOnHaltCmdsWhileHaltedPeriod:  0
+  UseTriggerToBreak:  y
+  UseTL2OnHalt:  y
+  UseOstateStable:  y
+  AllowJtagResetWhileRunning:  y
+  MaxAccRetry:  1
+  AccRetryDelay:  100
+  DefOcdsReserved:  
+  UseRestartWhileRunningHandling:  n
+  DebugResetOnDisconnect:  n
+  IgnoreEmemAccessErrors:  n
+  RemapEmemAccess:  n
+  EnableAutomaticHsmStart:  n
+  EnableAutomaticHsmRunControl:  n
+  ReadPmcsrWhileRunning:  n
+  MultiChipDbgMode:  0
+  MultiChipDbgInp:  1
+  MultiChipDbgOut:  6
+  MultiChipDbgCtl:  7
+  IgnoreShortHalt:  n
+  HaltOnBreakOnly:  n
+  IvIcacheOnHalt:  n
+  IvPlbOnHalt:  n
+  SuspendSlaveCores:  n
+  FilterMemAcc:  y
+  DasDllPath:  das_api.dll
+  DasHost:  
+  DasTryStartSrv:  y
+  DasSrvPath:  servers\udas\udas.exe
+  DasStopSrv:  y
+  DasResetHelperBreakAddr:  main
+  DasResetMode:  2
+  DasRemoveLogFile:  n
+  DasForwardSerNum:  n
+  DasSrvSel:  -1
+  DasPortType:  0
+  DasPortSel:  0
+  DasCmdTimeout:  1000
+  DasWaitAfterConnect:  0
+
+JTAG target infos:
+  JTAG-ID:           0x00000000
+  UsedJtagClk:       5000 kHz
+  ExtVoltage:        3.3 V
+  IntVoltageUsed:    n
+  CHIPID:            0x00000000
+  STSTAT:            0x00000000
+
+Component Version: 1.8.6.16275
+
+Communication device:
+  Type/Revision:  UAD2proV2
+  Serial Number:  617436
+  Firmware:       2.1.6.16275
+
+Communication protocol handler:
+  LastCmd:      0x0410
+  LastResult:   0xC000
+  ExpBytes:     228 (0x00E4)
+  RetBytes:     228 (0x00E4)
+  LastTimeout:  6000
+
+Protocol diagnostic output:
+  LastAddr:               0xF0000480
+  IOINFO:                 0x00000100
+  LastJioError:           0x0002
+  LastSupervisorJioError: 0x0002
+  JioErrorLine:           1541
+  ProtErrorLine:          3853
+  AddInfo4:               0 (0x00000000)
+  AddInfo5:               0 (0x00000000)
+
+
+----------------------------------------------------------
+
+  Connection Failed Report from
+  Basic UDE Target Interface, Version: 1.18.6
+  created: 09/04/26, 15:40:58
+
+----------------------------------------------------------
+
+Windows version:
+  Win8 ()
+  Admin: yes
+
+UDE version:
+  Release:  5.02.00
+  Build:    16275
+  Path:     F:\Program Files (x86)\pls\UDE 5.2
+
+Target configuration file:
+  F:\workFiles\ude5_0Files\TriBoard_TC36xA_das.cfg
+
+Error messages:
+  Tc2CoreTargIntf: Can't connect target !
+  Tc2CoreTargIntf: Can't connect JTAG target
+  Tc2CoreTargIntf: Can't open communication channel
+  UAD2CommDev: Can't connect Universal Access Device 2 !
+Please check:
+- Power supply of UAD2
+- Communication cable to UAD2
+  UDEDebugServer: UAD2proV2 - serial no. 617436 was suprised removed . To correct the situation, connect the communication device again and try to establish target communication.
+
+Settings:
+  PortType:  Default
+  CommDevSel:  
+  TargetPort:  Default
+  TargetPortId:  0
+  DasIsDefault:  n
+  MaxJtagClk:  5000
+  CheckJtagId:  y
+  ScanJTAG:  n
+  Ocds1ViaPod:  n
+  EtksArbiterMode:  None
+  EtksWaitAfterArbitrationTime:  0
+  RefreshJtag:  n
+  RefreshHarr:  n
+  ReenableOcds:  y
+  ReduceJtagClock:  n
+  UseDap:  y
+  DapMode:  2PIN
+  JtagMuxPort:  -1
+  UseNewJtagEngine:  y
+  ConnOption:  KeepRunning
+  SetDebugEnableAb1DisablePin:  n
+  ResetWaitTime:  500
+  ResetMode:  Default
+  OpenDrainReset:  n
+  DiswdtOnReset:  n
+  SetPllOnReset:  0x00000000
+  SetPllOnReset2:  0x00000000
+  ExecInitCmds:  y
+  InitScript Script:
+    ; Disable FLASH traps
+    set CPU0_FLASHCON1 0x10000
+    set CPU1_FLASHCON1 0x10000
+    set DMU_HF_ECCC 0xC0000000
+    
+    ; Init TLE35584 C-Step on connect
+    SET 0xF0036034  0x11100002
+    SET 0xF0001E00  0x8
+    SET 0xF0001E10  0x20003C04
+    SET 0xF0001E04  0x1
+    SET 0xF0001E14  0x14000000
+    SET 0xF0001E24  0x501
+    SET 0xF0001E48  0x00020000
+    SET 0xF003AF10  0x98000000
+    SET 0xF003AF14  0x10980000
+    SET 0xF003AF40  0x30330333
+    SET 0xF003AE10  0x10980000
+    SET 0xF003AE40  0x33333033
+    WAIT 5
+    SET 0xF0001E54  0xFFF
+    SET 0xF0001E60  0x17A10001
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E10  0x21003C04
+    SET 0xF0001E64 0x8756
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x87DE
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x86AD
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8625
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8D27
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8A01
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x87BE
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8668
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x877D
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    SET 0xF0001E64 0x8795
+    WAIT 5
+    SET 0xF0001E54 0x200
+    WAIT 5
+    SET 0xF0001E54 0x400
+    WAIT 5
+  ExecOnConnectCmds:  n
+  OnConnectScript Script:
+    
+  ExecOnExtRstCmds:  n
+  FailOnResetMalfunction:  n
+  ResetPulseLen:  10
+  AddResetDelay:  0
+  UseTrstOnReset:  n
+  ExecEmemInitOnReset:  0x00000000
+  SimHsmBootEnabled:  n
+  UnlockInterface:  n
+  BootPasswd0:  0x00000000
+  BootPasswd1:  0x00000000
+  BootPasswd2:  0x00000000
+  BootPasswd3:  0x00000000
+  BootPasswd4:  0x00000000
+  BootPasswd5:  0x00000000
+  BootPasswd6:  0x00000000
+  BootPasswd7:  0x00000000
+  PasswordFile:  
+  UnlockInterfaceDelay:  -1
+  HandleBmiHeader:  n
+  SetAutOkOnConnect:  n
+  DontUseWdtSusp:  n
+  InitCore0RamOnConnect:  n
+  MaxTry:  1
+  ForceEdMode:  -1
+  UseDflashAccessFilter:  y
+  DetectResetWhileHalted:  y
+  UseTranslateAddr:  y
+  DownloadToAllRams:  y
+  HaltAfterReset:  y
+  TargetAppHandshakeMode:  None
+  TargetAppHandshakeTimeout:  100
+  TargetAppHandshakeParameter0:  0x00000000
+  TargetAppHandshakeParameter1:  0x00000000
+  TargetAppHandshakeParameter2:  0x00000000
+  TargetAppHandshakeParameter3:  0x00000000
+  ConvertSuspendSignalToPulse:  n
+  SimioAddr:  g_JtagSimioAccess
+  UseStmForPtm:  1
+  ExecOnStartCmds:  n
+  OnStartScript Script:
+    
+  ExecOnHaltCmds:  n
+  OnHaltScript Script:
+    
+  ExecOnHaltCmdsWhileHaltedPeriod:  0
+  UseTriggerToBreak:  y
+  UseTL2OnHalt:  y
+  UseOstateStable:  y
+  AllowJtagResetWhileRunning:  y
+  MaxAccRetry:  1
+  AccRetryDelay:  100
+  DefOcdsReserved:  
+  UseRestartWhileRunningHandling:  n
+  DebugResetOnDisconnect:  n
+  IgnoreEmemAccessErrors:  n
+  RemapEmemAccess:  n
+  EnableAutomaticHsmStart:  n
+  EnableAutomaticHsmRunControl:  n
+  ReadPmcsrWhileRunning:  n
+  MultiChipDbgMode:  0
+  MultiChipDbgInp:  1
+  MultiChipDbgOut:  6
+  MultiChipDbgCtl:  7
+  IgnoreShortHalt:  n
+  HaltOnBreakOnly:  n
+  IvIcacheOnHalt:  n
+  IvPlbOnHalt:  n
+  SuspendSlaveCores:  n
+  FilterMemAcc:  y
+  DasDllPath:  das_api.dll
+  DasHost:  
+  DasTryStartSrv:  y
+  DasSrvPath:  servers\udas\udas.exe
+  DasStopSrv:  y
+  DasResetHelperBreakAddr:  main
+  DasResetMode:  2
+  DasRemoveLogFile:  n
+  DasForwardSerNum:  n
+  DasSrvSel:  -1
+  DasPortType:  0
+  DasPortSel:  0
+  DasCmdTimeout:  1000
+  DasWaitAfterConnect:  0
+
+JTAG target infos:
+  JTAG-ID:           0x10209083
+  UsedJtagClk:       5000 kHz
+  ExtVoltage:        3.3 V
+  IntVoltageUsed:    n
+  CHIPID:            0x87226480
+  STSTAT:            0x0008807C
+
+Component Version: 1.8.6.16275
+
+Communication device:
+  Type/Revision:  UAD2proV2
+  Serial Number:  617436
+  Firmware:       2.1.6.16275
+
+Communication protocol handler:
+  LastCmd:      0x0431
+  LastResult:   0x0001
+  ExpBytes:     220 (0x00DC)
+  RetBytes:     220 (0x00DC)
+  LastTimeout:  5000
+
+Protocol diagnostic output:
+  LastAddr:               0xF0000480
+  IOINFO:                 0x00000100
+  LastJioError:           0x0002
+  LastSupervisorJioError: 0x0002
+  JioErrorLine:           1541
+  ProtErrorLine:          3853
+  AddInfo4:               0 (0x00000000)
+  AddInfo5:               0 (0x00000000)
+
+

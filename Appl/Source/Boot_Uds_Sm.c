@@ -211,3 +211,10 @@ boolean Boot_Sm_AllowCheckDep(void)
 {
   return (Boot_Sm_State == BOOT_SM_PROGRAMMED) ? TRUE : FALSE;
 }
+
+boolean Boot_Sm_AllowActivateSwap(void)
+{
+  /* After TransferExit (+ optional FF02/FF01). */
+  return ((Boot_Sm_State == BOOT_SM_PROGRAMMED) ||
+          (Boot_Sm_State == BOOT_SM_CHECKED)) ? TRUE : FALSE;
+}

@@ -4,7 +4,7 @@
  *   0x80000000 ─┬─ BMHD + Startup + Boot code     128 KB  NEVER erase/write
  *   0x8001FFFF ─┘
  *   0x80020000 ─┬─ APP header (32 B) + APP image
- *   0x801FFFFF ─┘
+ *   0x801FFFFF ─┘  (TC364 4MB / SWAP 2MB·2MB：逻辑窗至 PF0 末)
  *
  * FlsLoader hardware view = cached + 0x20000000 (0xAxxx).
  * last364 must link from BOOT_FLASH_APP_START and must not emit BMHD.
@@ -30,6 +30,12 @@
 #define BOOT_FLASH_BOOT_SIZE             ((BOOT_FLASH_BOOT_END - BOOT_FLASH_BOOT_START) + 1u)
 #define BOOT_FLASH_APP_SIZE              ((BOOT_FLASH_APP_END - BOOT_FLASH_APP_START) + 1u)
 #define BOOT_FLASH_CACHED_TO_HW          (0x20000000u)
+
+/* Physical PF1 (Group B) — NVM only; never use as link address. */
+#define BOOT_FLASH_PF1_CACHED_START      (0x80300000u)
+#define BOOT_FLASH_PF1_HW_START          (0xA0300000u)
+#define BOOT_FLASH_SWAP_BANK_SIZE        (0x00200000u)
+#define BOOT_FLASH_PF1_PHYS_OFFSET       (0x00300000u)
 
 #define BOOT_FLASH_SECTOR_SIZE           (0x4000u) /* 16 KB PFlash sector */
 #define BOOT_FLASH_WRITE_ALIGN           (32u)
@@ -81,6 +87,11 @@ typedef struct
 
 #ifndef BOOT_APP_JUMP_ENABLE
 # define BOOT_APP_JUMP_ENABLE            (1u)
+#endif
+/* 1 = Boot_Init may probe APP header and jump.
+ * 0 = never touch APP PFlash window (Boot-only lab when APP window may be dirty). */
+#ifndef BOOT_APP_AUTO_JUMP
+# define BOOT_APP_AUTO_JUMP              (1u)
 #endif
 /* 1 = program BIV/BTV from header before jump (only if entry skips APP startup).
  * 0 = entry is brsStartupEntry; APP startup programs vectors (recommended). */

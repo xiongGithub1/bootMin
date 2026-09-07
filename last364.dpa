@@ -172,10 +172,31 @@
             <Settings Name="com.vector.cfg.gui.core.generators.ExtGenStepOrder">
                 <Setting Value="INTERNAL_GENERATION" Name="Order"/>
             </Settings>
+            <Settings Name="com.vector.cfg.gui.core.generators.GeneratedModules">
+                <Setting Value="false" Name="Can"/>
+                <Setting Value="false" Name="CanIf"/>
+                <Setting Value="false" Name="CanTp"/>
+                <Setting Value="false" Name="Cdd"/>
+                <Setting Value="false" Name="Crc"/>
+                <Setting Value="false" Name="Det"/>
+                <Setting Value="false" Name="Dio"/>
+                <Setting Value="false" Name="EcuC"/>
+                <Setting Value="false" Name="FlsLoader"/>
+                <Setting Value="false" Name="McalLib"/>
+                <Setting Value="false" Name="Mcu"/>
+                <Setting Value="false" Name="MemMap"/>
+                <Setting Value="false" Name="PduR"/>
+                <Setting Value="false" Name="Port"/>
+                <Setting Value="false" Name="Wdg"/>
+                <Setting Value="false" Name="WdgIf"/>
+                <Setting Value="false" Name="vBRS"/>
+                <Setting Value="false" Name="vSet"/>
+            </Settings>
             <Settings Name="com.vector.cfg.gui.core.generators.GenerationTarget">
                 <Setting Value="Real Target" Name="TargetType"/>
             </Settings>
             <Settings Name="com.vector.cfg.gui.core.generators.GeneratorsWithoutModuleDef">
+                <Setting Value="false" Name="/MICROSAR/E2EPW"/>
                 <Setting Value="false" Name="/MICROSAR/McDataConv"/>
             </Settings>
         </Generators>
@@ -361,6 +382,9 @@
                 <Settings Name="|MICROSAR|vLinkGen">
                     <Setting Value="2.5.1" Name="BswImplSwVersion"/>
                 </Settings>
+            </Settings>
+            <Settings Name="com.vector.cfg.gen.core.gencore.internal.aov.AutomaticOnDemandValidationConfigurationService">
+                <Setting Value="rO0ABXNyAGpjb20udmVjdG9yLmNmZy5nZW4uY29yZS5nZW5jb3JlLmludGVybmFsLmFvdi5BdXRv&#xA;bWF0aWNPbkRlbWFuZFZhbGlkYXRpb25Db25maWd1cmF0aW9uU2VydmljZSRQZXJzaXN0ZWREYXRh&#xA;pcjrmQ6cuakCAAJaAAlhY3RpdmF0ZWRMABJkZWFjdGl2YXRlZE1vZHVsZXN0ABZMamF2YS91dGls&#xA;L0NvbGxlY3Rpb247eHABc3IANmNvbS5nb29nbGUuY29tbW9uLmNvbGxlY3QuSW1tdXRhYmxlTGlz&#xA;dCRTZXJpYWxpemVkRm9ybQAAAAAAAAAAAgABWwAIZWxlbWVudHN0ABNbTGphdmEvbGFuZy9PYmpl&#xA;Y3Q7eHB1cgATW0xqYXZhLmxhbmcuT2JqZWN0O5DOWJ8QcylsAgAAeHAAAAAOc3IANWNvbS52ZWN0&#xA;b3IuY2ZnLm1vZGVsLmFjY2Vzcy5EZWZSZWYkU2VyaWFsaXphdGlvblByb3h5NnUB4bS2W7ACAAJM&#xA;AB5kZWZSZWZTdHJpbmdXaXRob3V0UGFja2FnZVBhcnR0ABJMamF2YS9sYW5nL1N0cmluZztMABlw&#xA;YWNrYWdlUGFydE9mRGVmUmVmU3RyaW5ncQB+AAl4cHQABUUyRVBXdAAJL01JQ1JPU0FSc3EAfgAI&#xA;dAAGTWVtTWFwcQB+AAxzcQB+AAh0AARQb3J0dAARL0FVUklYMkcvRWN1Y0RlZnNzcQB+AAh0AAlG&#xA;bHNMb2FkZXJxAH4AEXNxAH4ACHQABEVjdUNxAH4ADHNxAH4ACHQAA01jdXEAfgARc3EAfgAIdAAH&#xA;TWNhbExpYnEAfgARc3EAfgAIdAADRGlvcQB+ABFzcQB+AAh0AANXZGdxAH4AEXNxAH4ACHQABHZT&#xA;ZXRxAH4ADHNxAH4ACHQAA0NyY3EAfgARc3EAfgAIdAAEdkJSU3EAfgAMc3EAfgAIdAADQ2FudAAZ&#xA;L01JQ1JPU0FSL0Nhbl9NcGM1NzAwTWNhbnNxAH4ACHQABVdkZ0lmcQB+AAw=" Name="Data"/>
             </Settings>
             <Settings Name="com.vector.cfg.gui.pse.pages.generators">
                 <Settings Name="BuildVipProject"/>

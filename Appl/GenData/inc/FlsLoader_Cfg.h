@@ -15,7 +15,7 @@
 **                                                                            **
 **  VERSION   : 9.0.0                                                         **
 **                                                                            **
-**  DATE, TIME: 2026-08-21, 21:01:02              !!!IGNORE-LINE!!!           **
+**  DATE, TIME: 2026-09-04, 09:05:30              !!!IGNORE-LINE!!!           **
 **                                                                            **
 **  GENERATOR : Build b191017-0938                !!!IGNORE-LINE!!!           **
 **                                                                            **
@@ -570,15 +570,4 @@ Configuration: FlsLoader DFLASH0 Read/Write Protection configuration */
 #define FLSLOADER_DF0_USERMODE    ((uint32)(0U))
 
 
-///*
-// * Boot (same-bank PFlash erase): FlsLoader WRITEERASE runs from PSPR and must not
-// * call Flash-resident Mcal_DelayGetTick during busy-wait (TC234 uses inline FSR poll).
-// * Inline STM0 TIM0 only for FlsLoader translation units that include this cfg.
-// * Mcu/McalLib keep the real Mcal_DelayGetTick in Flash for clock init.
-// * NOTE: re-add after every DaVinci regeneration (hand-maintained block).
-// */
-//#ifndef Mcal_DelayGetTick
-//# define Mcal_DelayGetTick()  ((uint32)(*(volatile uint32 *)0xF0001010u))
-//#endif
-//
-//#endif /*FLSLOADER_CFG_H*/
+#endif /*FLSLOADER_CFG_H*/
